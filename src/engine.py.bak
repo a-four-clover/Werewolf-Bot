@@ -1,0 +1,272 @@
+﻿# --- engine.py (外部化対応版) ---
+from __future__ import annotations
+from dataclasses import dataclass
+from enum import Enum, auto
+from typing import Dict, List, Optional
+import random
+import json
+from pathlib import Path
+
+class Phase(Enum):
+    LOBBY = auto()
+    NIGHT = auto()
+    DAY = auto()
+    VOTE = auto()
+    RESOLUTION = auto()
+    CHECK_WIN = auto()
+    END = auto()
+
+@dataclass
+class Player:
+    id: str
+    name: str
+    alive: bool = True
+    role_id: Optional[str] = None
+
+@dataclass
+class Role:
+    id: str
+    name: str
+    faction: str  # 'village', 'werewolf', 'neutral'
+
+@dataclass
+class GameSettings:
+    max_players: int = 9
+    min_players: int = 4
+    allow_third_faction: bool = True
+    night_duration_sec: int = 30
+    day_duration_sec: int = 60
+
+@dataclass
+class Vote:
+    from_id: str
+    target_id: Optional[str]
+
+class Game:
+    def __init__(self, game_id: str, owner_id: str, settings: Optional[GameSettings] = None):
+        self.game_id = game_id
+        self.owner_id = owner_id
+        self.settings = settings or GameSettings()
+        self.players: Dict[str, Player] = {}
+        self.phase: Phase = Phase.LOBBY
+        self.roles: Dict[str, Role] = {}
+        self.votes: List[Vote] = []
+        self.logs: List[str] = []
+        self._ensure_default_roles()
+
+    def log(self, msg: str):
+        self.logs.append(msg)
+
+    def _ensure_default_roles(self):
+        # Try to load role definitions from roles/roles.json
+        loaded = self._load_roles_from_json()
+        if loaded:
+            self.roles = {}
+            for rid, info in loaded.items():
+                name = info.get('name', rid)
+                faction = info.get('faction', 'village')
+                self.roles[rid] = Role(id=rid, name=name, faction=faction)
+            self.log(f\"Loaded roles from JSON: {list(self.roles.keys())}\")
+            return
+
+        # Fallback defaults
+        self.roles = {
+            "villager": Role(id="villager", name="村人", faction="village"),
+            "werewolf": Role(id="werewolf", name="人狼", faction="werewolf"),
+            "seer": Role(id="seer", name="占い師", faction="village"),
+            "madman": Role(id="madman", name="狂人", faction="neutral"),
+        }
+        self.log(\"Using builtin default roles\")
+
+    def _load_roles_from_json(self) -> Optional[Dict[str, Dict[str, str]]]:
+        # Candidate locations: project_root/roles/roles.json or cwd/roles/roles.json
+        try:
+            this_dir = Path(__file__).resolve().parents[1]
+        except Exception:
+            this_dir = Path.cwd()
+
+        paths = [this_dir / 'roles' / 'roles.json', Path.cwd() / 'roles' / 'roles.json']
+        for p in paths:
+            if p.exists():
+                try:
+                    with p.open('r', encoding='utf-8') as f:
+                        data = json.load(f)
+                        if isinstance(data, list):
+                            out: Dict[str, Dict[str, str]] = {}
+                            for item in data:
+                                rid = item.get('id')
+                                if not rid:
+                                    continue
+                                out[rid] = {'name': item.get('name', rid), 'faction': item.get('faction', 'village')}
+                            return out
+                        elif isinstance(data, dict):
+                            return data
+                except Exception as e:
+                    # record error to logs and return None to fallback
+                    self.log(f\"Failed to load roles from {p}: {e}\")
+                    return None
+        return None
+
+    # Lobby management
+    def join(self, user_id: str, display_name: str) -> bool:
+        if self.phase != Phase.LOBBY:
+            return False
+        if user_id in self.players:
+            return False
+        if len(self.players) >= self.settings.max_players:
+            return False
+        self.players[user_id] = Player(id=user_id, name=display_name)
+        self.log(f\"{display_name} joined\")
+        return True
+
+    def leave(self, user_id: str) -> bool:
+        if user_id not in self.players:
+            return False
+        p = self.players.pop(user_id)
+        self.log(f\"{p.name} left\")
+        return True
+
+    def start(self) -> bool:
+        if self.phase != Phase.LOBBY:
+            return False
+        if len(self.players) < self.settings.min_players:
+            return False
+        self.assign_roles()
+        self.phase = Phase.NIGHT
+        self.log(\"Game started: NIGHT\")
+        return True
+
+    def assign_roles(self):
+        n = len(self.players)
+        werewolves = max(1, n // 4)
+        ids = list(self.players.keys())
+        random.shuffle(ids)
+        assigned: Dict[str, str] = {}
+
+        for i in range(werewolves):
+            if not ids:
+                break
+            pid = ids.pop()
+            assigned[pid] = "werewolf"
+
+        if ids:
+            pid = ids.pop()
+            assigned[pid] = "seer"
+
+        if self.settings.allow_third_faction and n >= 6 and ids:
+            pid = ids.pop()
+            assigned[pid] = "madman"
+
+        for pid in ids:
+            assigned[pid] = "villager"
+
+        for pid, role_id in assigned.items():
+            self.players[pid].role_id = role_id
+            self.log(f\"Assigned {self.players[pid].name} -> {role_id}\")
+
+    # Phase progression (synchronous simplified)
+    def night_actions(self, night_choices: Dict[str, Optional[str]]):
+        if self.phase != Phase.NIGHT:
+            raise RuntimeError(\"Not in NIGHT phase\")
+
+        wolf_votes: Dict[str, int] = {}
+        for pid, choice in night_choices.items():
+            if pid not in self.players:
+                continue
+            role = self.players[pid].role_id
+            if role == "werewolf" and choice:
+                wolf_votes[choice] = wolf_votes.get(choice, 0) + 1
+                self.log(f\"{self.players[pid].name} (wolf) chose {choice}\")
+            if role == "seer" and choice:
+                target = self.players.get(choice)
+                faction = target.role_id if target else 'unknown'
+                self.log(f\"Seer {self.players[pid].name} checked {choice} -> {faction}\")
+
+        if wolf_votes:
+            target_id = max(wolf_votes.items(), key=lambda x: x[1])[0]
+            target = self.players.get(target_id)
+            if target:
+                target.alive = False
+                self.log(f\"Night: {target.name} was killed by wolves\")
+
+        self.phase = Phase.DAY
+        self.log(\"Moved to DAY\")
+
+    def start_day_vote(self):
+        if self.phase != Phase.DAY:
+            raise RuntimeError(\"Not in DAY phase\")
+        self.phase = Phase.VOTE
+        self.votes = []
+        self.log(\"Moved to VOTE\")
+
+    def cast_vote(self, from_id: str, target_id: Optional[str]) -> bool:
+        if self.phase != Phase.VOTE:
+            return False
+        if from_id not in self.players:
+            return False
+        if not self.players[from_id].alive:
+            return False
+        self.votes = [v for v in self.votes if v.from_id != from_id]
+        self.votes.append(Vote(from_id=from_id, target_id=target_id))
+        self.log(f\"{self.players[from_id].name} voted -> {target_id}\")
+        return True
+
+    def resolve_votes(self):
+        if self.phase != Phase.VOTE:
+            raise RuntimeError(\"Not in VOTE phase\")
+        tally: Dict[Optional[str], int] = {}
+        for v in self.votes:
+            tally[v.target_id] = tally.get(v.target_id, 0) + 1
+        if not tally:
+            self.log(\"No votes cast\")
+            self.phase = Phase.CHECK_WIN
+            return
+        target_id, count = max(tally.items(), key=lambda x: x[1])
+        if target_id is None:
+            self.log(\"Abstain won -> no lynch\")
+        else:
+            victim = self.players.get(target_id)
+            if victim:
+                victim.alive = False
+                self.log(f\"Day: {victim.name} was lynched\")
+        self.phase = Phase.CHECK_WIN
+
+    def check_win(self) -> Optional[str]:
+        if self.phase != Phase.CHECK_WIN:
+            raise RuntimeError(\"Not in CHECK_WIN phase\")
+        alive = [p for p in self.players.values() if p.alive]
+        factions: Dict[str, int] = {}
+        for p in alive:
+            rid = p.role_id
+            if not rid:
+                continue
+            faction = self.roles[rid].faction
+            factions[faction] = factions.get(faction, 0) + 1
+        self.log(f\"Alive factions count: {factions}\")
+
+        if factions.get('werewolf', 0) == 0:
+            self.phase = Phase.END
+            self.log(\"Village wins\")
+            return 'village'
+        if factions.get('werewolf', 0) >= sum(v for k, v in factions.items() if k != 'werewolf'):
+            self.phase = Phase.END
+            self.log(\"Werewolves win\")
+            return 'werewolf'
+        if factions.get('neutral', 0) > 0 and sum(factions.values()) == factions.get('neutral', 0):
+            self.phase = Phase.END
+            self.log(\"Neutral wins\")
+            return 'neutral'
+
+        self.phase = Phase.NIGHT
+        self.log(\"No win yet; continue to NIGHT\")
+        return None
+
+    # Helpers
+    def alive_players(self) -> List[Player]:
+        return [p for p in self.players.values() if p.alive]
+
+    def get_player_role(self, player_id: str) -> Optional[str]:
+        p = self.players.get(player_id)
+        return p.role_id if p else None
+
+# --- end of engine.py
