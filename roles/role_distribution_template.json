@@ -1,0 +1,49 @@
+{
+  // role_distribution_template.json
+  // 使用方法:
+  // - 各キーは人数（文字列）を表します。
+  // - 値は配列で指定します。要素は "role" または "role:count" の形式を使えます。
+  //   例: ["werewolf:2", "seer", "villager:3"]
+  // - villager を明示的に省略した場合、残りの人数が自動的に villager で埋められます。
+  // - 配列の要素は順序保持されますが、最終的には役職の一覧として展開されます。
+  // - 既存の dict 形式（"role":count）もそのまま使用可能です。
+  
+  "8": ["werewolf:2", "seer", "medium", "knight", "bakery", "arsonist", "villager"]
+}
+{
+  "#": "人数をキーにして、各役職の枚数を指定します。合計が人数と一致するようにしてください。",
+  "4": {
+    "werewolf": 1,
+    "seer": 1,
+    "villager": 2
+  },
+  "5": {
+    "werewolf": 1,
+    "seer": 1,
+    "villager": 3
+  },
+  "6": {
+    "werewolf": 1,
+    "seer": 1,
+    "madman": 1,
+    "villager": 3
+  },
+  "7": {
+    "werewolf": 2,
+    "seer": 1,
+    "madman": 1,
+    "villager": 3
+  },
+  "8": {
+    "werewolf": 2,
+    "seer": 1,
+    "madman": 1,
+    "villager": 4
+  },
+  "9": {
+    "werewolf": 2,
+    "seer": 1,
+    "madman": 1,
+    "villager": 5
+  }
+}

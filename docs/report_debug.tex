@@ -1,0 +1,211 @@
+% LaTeX report generated from conversation
+% Compile with: xelatex report.tex (or lualatex)
+\documentclass[12pt,a4paper]{article}
+\usepackage{xeCJK}
+\usepackage{fontspec}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{geometry}
+\usepackage{caption}
+\usepackage{longtable}
+\usepackage{enumitem}
+\geometry{left=25mm,right=25mm,top=25mm,bottom=25mm}
+% Fonts (XeLaTeX)
+\setmainfont{DejaVu Serif}
+\setsansfont{DejaVu Sans}
+\setCJKmainfont{Yu Gothic}
+\title{人狼ボット開発レポート}
+\author{}
+\date{2025年10月16日}
+\begin{document}
+\maketitle
+
+\section*{1. 概要 — やったことと動かしたもの}
+
+本リポジトリ（werewolf ボット）は Discord 向けの「人狼」スタイルゲーム実装です。本作業で行った主要作業は次のとおりです。
+
+\begin{itemize}
+  \item Lovers（恋人）オーバーレイの実装と paired-death（片方が死ぬともう片方も死ぬ）処理の導入。
+  \item guesser 系（\texttt{nice\_guesser}, \texttt{evil\_guesser}）のワンショット攻撃挙動の整備。特に \texttt{evil\_guesser} を「人狼（werewolf）派閥」として扱うことにより、狼チームの通知／夜の投票に含める仕様変更を行った。
+  \item 夜UIの選択フローを「選択をステージ -> Execute（実行）で確定」する設計に変更（誤発動抑止）。
+  \item 死亡処理をエンジン内で中央集権化（\texttt{Game.\_kill\_player}）し、Lovers の副作用や DM キューイングが一貫して発生するようにした。
+  \item i18n（国際化）フックの追加と文言移行の一部。
+\end{itemize}
+
+\section*{2. 具体的手続き（環境設定と実行手順）}
+
+以下は作業を再現するための最低限の手順です。Windows（PowerShell）環境で検証を実施しました。Python は 3.11 を使用しています。
+
+\subsection*{前提}
+
+\begin{itemize}
+  \item Python 3.11 がインストールされていること
+  \item 必要な Python モジュール：discord.py（ボット動作）、pytest（テスト）など
+\end{itemize}
+
+\subsection*{推奨のセットアップ手順（PowerShell）}
+\begin{verbatim}
+# 作業ディレクトリに移動（リポジトリをクローン済みであること）
+Set-Location -LiteralPath 'C:\path\to\werewolf'
+
+# 仮想環境の作成（任意だが推奨）
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+
+# 必要パッケージのインストール（なければインストール）
+pip install -U pip
+pip install discord.py pytest
+\end{verbatim}
+
+\subsection*{テストの実行（ローカル smoke / pytest）}
+\begin{verbatim}
+# 簡易スモークテスト（プロジェクト内にある簡易 runner）
+python tests/run_lovers_smoke.py
+
+# pytest フルスイートを実行（環境に pytest がある場合）
+python -m pytest -q
+\end{verbatim}
+
+\subsection*{Bot の起動（実際に Discord に接続する場合）}
+\begin{verbatim}
+# 例: 環境変数として指定して起動
+$env:DISCORD_TOKEN = 'YOUR_BOT_TOKEN'
+python -m src.discord_bot
+\end{verbatim}
+
+\section*{3. 主要なコード抜粋と変更点の解説}
+
+\subsection*{1) 中央化された死亡処理（\texttt{src/engine.py}）}
+\begin{lstlisting}[language=Python]
+def _kill_player(self, player_id: str, reason: Optional[str] = None):
+    """Kill a player if alive, queue private message, and if they are in a lovers pair, also kill their partner.
+    Returns list of actually killed player ids in the order they died (primary first, partner second).
+    """
+    killed: List[str] = []
+    try:
+        p = self.players.get(player_id)
+        if not p:
+            return killed
+        if not p.alive:
+            return killed
+        p.alive = False
+        killed.append(player_id)
+        # queue a dead dm for the player
+        try:
+            self._push_private(player_id, {'key': 'dead_dm', 'params': {}})
+        except Exception:
+            pass
+        # if player is lovers-paired, kill partner as well (if alive)
+        partner = self._lovers.get(player_id)
+        if partner:
+            partner_p = self.players.get(partner)
+            if partner_p and partner_p.alive:
+                partner_p.alive = False
+                killed.append(partner)
+                # queue partner dead dm and lovers partner notification
+                try:
+                    self._push_private(partner, {'key': 'lovers_partner_killed', 'params': {'by': p.name}})
+                except Exception:
+                    pass
+    except Exception as e:
+        self.log(f"_kill_player failed for {player_id}: {e}")
+    return killed
+\end{lstlisting}
+
+\subsection*{2) 夜の狼投票集計（faction ベース）}
+\begin{lstlisting}[language=Python]
+role = self.players[pid].role_id
+try:
+    role_obj = self.roles.get(role) if role else None
+except Exception:
+    role_obj = None
+if getattr(role_obj, 'faction', None) == 'werewolf' and choice:
+    wolf_votes[choice] = wolf_votes.get(choice, 0) + 1
+    # private: don't expose who wolves chose in public logs
+    self.log(f"[PRIVATE] {self.players[pid].name} (wolf) chose {choice}")
+\end{lstlisting}
+
+\subsection*{3) 夜UI（\texttt{src/discord_bot.py}）のステージング + 実行フロー}
+\begin{lstlisting}[language=Python]
+class NightSelectView(ui.View):
+    def __init__(self, timeout: int, game: Game, player_id: str, options: List[discord.SelectOption]):
+        super().__init__(timeout=timeout)
+        self.game = game
+        self.player_id = player_id
+        self.selected_target = None
+        self.add_item(self.TargetSelect(options=options))
+        # add an Execute button; confirmation-only flow
+        try:
+            self.add_item(self.RunButton())
+        except Exception:
+            pass
+
+    class TargetSelect(ui.Select):
+        async def callback(self, interaction: discord.Interaction):
+            view: WerewolfCog.NightSelectView = self.view
+            selected = self.values[0]
+            view.selected_target = selected
+            await interaction.followup.send(msg('night_choice_registered', target=target_label) + "。実行するには「実行」ボタンを押してください。")
+
+    class RunButton(ui.Button):
+        async def callback(self, interaction: discord.Interaction):
+            sel = getattr(view, 'selected_target', None)
+            if sel is None:
+                await interaction.response.send_message(msg('no_selection'), ephemeral=True)
+                return
+            view.game._pending_night_choices[view.player_id] = sel
+            # set event and acknowledge
+            ev = view.game._night_events.get(view.player_id)
+            if ev:
+                ev.set()
+            await interaction.response.send_message(msg('night_choice_registered', target=str(sel)))
+            view.stop()
+\end{lstlisting}
+
+\subsection*{4) roles/roles.json（抜粋）}
+\begin{verbatim}
+{
+  "werewolf": {"name": "人狼", "faction": "werewolf", "abbr": "狼"},
+  "evil_guesser": {"name": "イビルゲッサー", "faction": "werewolf", "abbr": "イビゲ"},
+  "nice_guesser": {"name": "ナイスゲッサー", "faction": "village", "abbr": "ナイゲ"},
+  ...
+}
+\end{verbatim}
+
+\section*{4. 分かったこと・わからなかったこと（講義で解消したいこと）}
+
+\subsection*{分かったこと}
+\begin{itemize}
+  \item 中央で死亡処理を一元化すると副作用管理（Lovers の連鎖死、DM のキューイング、ログ出力）が一貫して正しく動きやすくなる。
+  \item 役職の "派閥（faction）" メタデータを利用する設計は拡張性が高い。
+  \item Discord ボット UI の「選択をステージして実行で確定する」フローは誤実行の抑止に有効。
+\end{itemize}
+
+\subsection*{未解消の課題（講義で扱いたい点）}
+\begin{itemize}
+  \item E2E テストの自動化（Discord API を伴うフロー）とモックの設計。
+  \item ゲームバランス評価のための大量シミュレーション基盤。
+  \item 複雑な同時死亡ケースの厳密な勝利判定の網羅的検証。
+  \item i18n の完全運用化（翻訳ファイル管理、テスト）
+\end{itemize}
+
+\section*{5. 今後の展望}
+
+\begin{itemize}
+  \item CI で実行可能な単体／統合テストの整備（adapter をモック化して engine を純粋にテスト可能にする）。
+  \item シミュレータを作成して役職配置ごとの勝率を評価する。
+  \item ドキュメント（README）と起動手順の整備。
+\end{itemize}
+
+\section*{付録：作業履歴}
+
+\begin{verbatim}
+- ファイル編集: src/engine.py（wolf 判定修正、_kill_player 実装）
+- ファイル編集: src/discord_bot.py（NightSelectView 実装確認・インデント修正）
+- 確認: roles/roles.json
+- テスト実行:
+  - python tests/run_lovers_smoke.py -> OK
+  - python -m pytest -q -> initially failed (IndentationError), fixed, then passed
+\end{verbatim}
+
+\end{document}

@@ -1,0 +1,90 @@
+{
+  "3": [
+    "werewolf",
+    "nice_guesser",
+    "sage"
+  ],
+  "4": [
+    "evil_guesser",
+    "madman",
+    "medium",
+    "jester"
+  ],
+  "5": [
+    "werewolf",
+    "seer",
+    "medium",
+    "knight",
+    "arsonist"
+  ],
+  "6": [
+    "werewolf:2",
+    "seer",
+    "medium",
+    "knight",
+    "arsonist"
+  ],
+  "7": [
+    "werewolf:2",
+    "seer",
+    "medium",
+    "knight",
+    "nice_guesser",
+    "arsonist"
+  ],
+  "8": [
+    "werewolf:2",
+    "madman",
+    "seer",
+    "medium",
+    "knight",
+    "nice_guesser",
+    "sage"
+  ],
+  "9": [
+    "werewolf:2",
+    "madman",
+    "seer",
+    "medium",
+    "knight",
+    "sage",
+    "jester",
+    "villager"
+  ],
+  "10": [
+    "werewolf:2",
+    "madman",
+    "seer",
+    "medium",
+    "knight",
+    "nice_guesser",
+    "sage",
+    "bakery",
+    "jester"
+  ],
+  "11": [
+    "werewolf:2",
+    "madman",
+    "seer",
+    "medium",
+    "knight",
+    "nice_guesser",
+    "sage",
+    "bakery",
+    "jester",
+    "villager"
+  ],
+  "12": [
+    "werewolf:2",
+    "evil_guesser",
+    "madman",
+    "seer",
+    "medium",
+    "knight",
+    "nice_guesser",
+    "sage",
+    "bakery",
+    "jester",
+    "villager"
+  ]
+}
