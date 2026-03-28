@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Login - Werewolf Config</title>
+  <style>
+    :root{
+      --bg:#ffffff; --fg:#1b1b1b; --accent:#0b62c7; --error:#ef4444;
+    }
+    body{
+      background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color:var(--fg);
+      font-family:Segoe UI, Roboto, Meiryo, sans-serif;
+      margin:0;
+      min-height:100vh;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+    .login-box{
+      background:var(--bg);
+      padding:40px;
+      border-radius:12px;
+      box-shadow:0 10px 40px rgba(0,0,0,0.2);
+      width:100%;
+      max-width:400px;
+      box-sizing:border-box;
+    }
+    h1{
+      margin:0 0 8px 0;
+      font-size:1.8rem;
+      text-align:center;
+    }
+    .subtitle{
+      text-align:center;
+      color:#6b7280;
+      margin-bottom:32px;
+      font-size:0.95rem;
+    }
+    label{
+      display:block;
+      margin-bottom:8px;
+      font-weight:600;
+      font-size:0.95rem;
+    }
+    input[type=password]{
+      width:100%;
+      padding:12px;
+      border:1px solid #d1d5db;
+      border-radius:8px;
+      font-size:1rem;
+      box-sizing:border-box;
+      margin-bottom:20px;
+    }
+    input[type=password]:focus{
+      outline:none;
+      border-color:var(--accent);
+      box-shadow:0 0 0 3px rgba(11,98,199,0.1);
+    }
+    button{
+      background:var(--accent);
+      color:#fff;
+      border:none;
+      padding:12px;
+      border-radius:8px;
+      cursor:pointer;
+      width:100%;
+      font-size:1rem;
+      font-weight:600;
+    }
+    button:hover{
+      background:#0a56b3;
+    }
+    .error-msg{
+      color:var(--error);
+      font-size:0.9rem;
+      margin-top:12px;
+      text-align:center;
+      display:none;
+    }
+    .error-msg.show{
+      display:block;
+    }
+  </style>
+</head>
+<body>
+  <div class="login-box">
+    <h1>ログイン</h1>
+    <div class="subtitle">Werewolf Config Server</div>
+    <form id="login-form">
+      <label for="password">パスワード</label>
+      <input type="password" id="password" placeholder="パスワードを入力してください" required autofocus />
+      <button type="submit">ログイン</button>
+      <div id="error-msg" class="error-msg">パスワードが正しくありません。もう一度お試しください。</div>
+    </form>
+  </div>
+
+  <script>
+    const form = document.getElementById('login-form');
+    const passwordInput = document.getElementById('password');
+    const errorMsg = document.getElementById('error-msg');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errorMsg.classList.remove('show');
+
+      const password = passwordInput.value;
+      try {
+        const resp = await fetch('/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password })
+        });
+
+        const data = await resp.json();
+        if (data.ok) {
+          // Redirect to main page
+          window.location.href = '/';
+        } else {
+          errorMsg.classList.add('show');
+          passwordInput.value = '';
+          passwordInput.focus();
+        }
+      } catch (e) {
+        errorMsg.textContent = 'Connection error. Please try again.';
+        errorMsg.classList.add('show');
+      }
+    });
+  </script>
+</body>
+</html>

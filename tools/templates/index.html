@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Role Configuration (Read-only)</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js" integrity="sha512-+hYqC3z6sSx0I8CkQm8jvM0W2u1Q8QbqGzq0u2c4IhJ1b2zQeY0hVQY9m1lQ6p+oG9xv5Yy5mW0tYzK7s2vXAQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <main>
+    <h1>役職設定 (読み取り専用)</h1>
+    <div id="last-updated">最新データ</div>
+    <table id="roles-table">
+      <thead>
+        <tr><th>役職ID</th><th>英名/表示名</th><th>日本語名</th><th>陣営</th></tr>
+      </thead>
+      <tbody>
+        {% for r in roles %}
+        <tr>
+          <td class="role-id">{{ r.id }}</td>
+          <td class="role-name">{{ r.name }}</td>
+          <td class="role-name-ja">{{ r.name_ja }}</td>
+          <td class="role-faction">{{ r.faction }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p class="note">このページは読み取り専用です。設定の変更はサーバー側の JSON を編集するか、管理者コマンドで再読み込みしてください。</p>
+  </main>
+</body>
+</html>

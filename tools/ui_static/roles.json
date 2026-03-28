@@ -1,0 +1,62 @@
+{
+  "werewolf": {
+    "name": "人狼",
+    "faction": "werewolf",
+    "description": "夜に村人を襲う陣営。昼は村人に紛れて議論する。"
+  },
+  "villager": {
+    "name": "村人",
+    "faction": "village",
+    "description": "特殊能力は無い一般市民。議論と投票で人狼を見つけ出す。"
+  },
+  "seer": {
+    "name": "占い師",
+    "faction": "village",
+    "description": "夜に誰かが人狼かどうかを調べられる能力を持つ。"
+  },
+  "madman": {
+    "name": "狂人",
+    "faction": "madman",
+    "description": "人狼陣営をサポートする第三勢力。生存している限り人狼の勝利に貢献する。"
+  },
+  "medium": {
+    "name": "霊媒師",
+    "faction": "village",
+    "description": "処刑されたプレイヤーの役職を知ることができる。"
+  },
+  "knight": {
+    "name": "騎士",
+    "faction": "village",
+    "description": "夜に誰かを守る能力（連続で同じ人を守れない等の制約があることが多い）。"
+  },
+  "sage": {
+    "name": "賢者",
+    "faction": "village",
+    "description": "特殊な防御や情報取得の能力を持つことがあるロール（設定で挙動が異なります）。"
+  },
+  "arsonist": {
+    "name": "放火者",
+    "faction": "neutral",
+    "description": "夜に誰かに放火し、燃やすことで勝利条件を満たす中立勢力。"
+  },
+  "nice_guesser": {
+    "name": "善良な予言者",
+    "faction": "village",
+    "description": "占いに似た能力を持つが、判定ロジックが少し異なる特性を持つことがある。"
+  },
+  "evil_guesser": {
+    "name": "邪悪な予言者",
+    "faction": "werewolf",
+    "description": "占いに似た能力を持つが、人狼寄りの情報を返す特殊役職。"
+  },
+  "bakery": {
+    "name": "パン屋",
+    "faction": "village",
+    "description": "ゲーム内のユニークな支援役職。実装により効果は異なる。"
+  },
+  "jester": {
+    "name": "道化師",
+    "faction": "jester",
+    "description": "自分が処刑されることで勝利する特殊役職。挑発的な発言をするのが特徴。"
+  }
+}

@@ -1,0 +1,1274 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Werewolf powered by recorder</title>
+  <style>
+    :root{
+      --bg:#ffffff; --fg:#1b1b1b; --muted:#6b7280; --accent:#0b62c7; --panel:#f7f7f8;
+      --nav-bg:#ffffff; --nav-border:#e6e6e9; --nav-item-hover:#0b62c7;
+      /* faction palette (light background + strong border/accent) */
+      --f-werewolf-bg: #fff1f2; --f-werewolf-border: #ef4444;
+      --f-village-bg: #f0f7ff; --f-village-border: #0b62c7;
+      --f-third-bg: #f0fff4; --f-third-border: #16a34a;
+    }
+    body{background:var(--bg);color:var(--fg);font-family:Segoe UI, Roboto, Meiryo, sans-serif;margin:0}
+    h1{margin:0 0 8px 0}
+  .controls{display:flex;gap:12px;align-items:center;margin:16px 18px 10px 18px;flex-wrap:wrap}
+    .row{margin-bottom:8px}
+    textarea{font-family:Consolas,monospace;resize:vertical;border:1px solid #ccc;padding:8px;background:var(--panel);color:var(--fg)}
+    button{background:var(--accent);color:#fff;border:none;padding:8px 12px;border-radius:6px;cursor:pointer}
+    button.ghost{background:transparent;color:var(--fg);border:1px solid rgba(0,0,0,0.08)}
+    label{font-size:0.95rem}
+    #status{margin-top:8px;color:var(--muted)}
+    .small{font-size:0.9rem;color:var(--muted)}
+    .flex{display:flex;gap:8px;align-items:center}
+    .spacer{flex:1}
+    .error{color:#f44}
+    .ok{color:#2a8f4d}
+    .panel{background:var(--panel);padding:10px;border-radius:8px}
+  .row-error{background:rgba(255,66,54,0.06)}
+</style>
+  <style>
+    /* Toast / small popup */
+  /* center-aligned toast positioned near bottom center */
+  #toast_holder{position:fixed;left:50%;transform:translateX(-50%);bottom:28px;z-index:2000;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none}
+  .toast{background:#111;color:#fff;padding:10px 14px;border-radius:8px;box-shadow:0 6px 18px rgba(15,23,42,0.18);font-size:0.95rem;min-width:200px;max-width:360px;text-align:center;pointer-events:auto}
+  .toast.ok{background:#1f9d55}
+  .toast.warn{background:#d97706}
+  .toast.error{background:#ef4444}
+  /* ensure persistent (small) variant uses the same sizing and centered text */
+  .toast.small{font-size:0.95rem;padding:10px 14px;min-width:200px;max-width:360px;text-align:center}
+  </style>
+  <style>
+  /* Table editor styles */
+  #table_wrapper table{border-collapse:collapse;width:100%;min-width:720px}
+  #table_wrapper th, #table_wrapper td{border:1px solid #e6e6e9;padding:8px;text-align:center;vertical-align:middle}
+    #table_wrapper th{background:#fbfbfc;font-weight:600}
+    #table_wrapper input[type=number]{width:70px;padding:6px;border:1px solid #d0d7de;border-radius:4px}
+    #table_wrapper .count-input{width:64px}
+    /* contenteditable td styles for inline editing */
+    #table_wrapper td.count-cell, #table_wrapper td.role-cell, #table_wrapper td.villager-display{min-width:64px;padding:8px}
+    #table_wrapper td[contenteditable="true"]{background:#fff;border-radius:4px}
+    #table_wrapper td[contenteditable="true"]:focus{outline:2px solid rgba(11,98,199,0.18)}
+      /* inline increment/decrement controls inside cells */
+      .cell-inner{display:flex;align-items:center;justify-content:center;gap:6px}
+      .cell-value{min-width:34px;display:inline-block}
+      .cell-controls{display:flex;flex-direction:column}
+  /* make increment/decrement buttons visually lighter / lower contrast */
+  .cell-btn{background:#fafafa;border:1px solid #eceff3;border-radius:4px;padding:2px 4px;cursor:pointer;font-size:11px;line-height:1;color:rgba(0,0,0,0.55)}
+  .cell-btn:hover{background:#f4f6f8}
+  .cell-btn:active{background:#eef1f4}
+  /* faction color helpers for table headers: use background only (no colored outline) */
+  #table_wrapper th.faction-werewolf{background:var(--f-werewolf-bg) !important}
+  #table_wrapper th.faction-village{background:var(--f-village-bg) !important}
+  #table_wrapper th.faction-third{background:var(--f-third-bg) !important}
+  /* role-name header layout: center the role-name cells (2行目中央揃え) */
+  #table_wrapper th.role-header{text-align:center;padding-left:0}
+  </style>
+  <style>
+  /* Corporate-style top nav (muted colored background, larger title) */
+  header.navbar{background:#eef6ff;border-bottom:1px solid #e1e8f5;display:flex;align-items:center;gap:24px;padding:12px 20px}
+  .nav-brand{font-weight:600;font-size:1.6rem;color:#0b1726;margin-right:12px}
+  .nav-items{display:flex;gap:18px;margin-left:12px}
+  .nav-item{color:#334155;text-decoration:none;padding:6px 0;font-size:0.98rem}
+  .nav-item:hover{color:var(--nav-item-hover);text-decoration:underline}
+  .nav-item.active{color:var(--accent);text-decoration:underline;font-weight:700}
+  </style>
+  <style>
+    /* Roles view tweaks */
+    .role-section{margin-bottom:18px}
+    .role-entry{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:6px}
+    .role-entry .role-title{font-weight:700}
+    .role-entry .role-meta{color:var(--muted);font-size:0.9rem}
+  .role-desc{margin-top:6px;padding:10px;background:#fff;border-radius:6px;border:1px solid #eee;display:none}
+  .toggle-tri{background:transparent;border:1px solid #ddd;border-radius:4px;padding:2px 6px;cursor:pointer;color:var(--accent);font-weight:700;display:inline-flex;align-items:center}
+  .toggle-tri .tri{display:inline-block;transform-origin:center;transition:transform .12s ease}
+  .toggle-tri.open .tri{transform:rotate(90deg)}
+
+  /* color the small triangle according to faction when the button has the faction class */
+  .toggle-tri.faction-werewolf .tri{color:var(--f-werewolf-border)}
+  .toggle-tri.faction-village .tri{color:var(--f-village-border)}
+  .toggle-tri.faction-third .tri{color:var(--f-third-border)}
+  /* Increase left/right whitespace for roles view (slightly reduced) */
+  #view_roles{padding:18px 24px}
+  #roles_list{max-width:1100px;margin:0 auto;padding:0 12px}
+  /* search bar centered and matching roles_list width */
+  .roles-search-bar{max-width:1100px;margin:0 auto;display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:0 12px;box-sizing:border-box}
+  #roles_search{flex:1;padding:10px 12px;border-radius:8px;border:1px solid #ccc;font-size:1rem}
+  /* admin search should match roles search size and behavior */
+  #admin_search{flex:1;padding:10px 12px;border-radius:8px;border:1px solid #ccc;font-size:1rem}
+  /* keep only the search input text larger; restore role-entry sizes to original */
+  .role-entry{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:6px}
+  .role-entry .role-title{font-weight:700}
+  /* faction accent for role panels: decorative left strip removed as requested */
+  /* keep role title color accents only */
+  .role-entry .role-title.faction-werewolf{color:var(--f-werewolf-border)}
+  .role-entry .role-title.faction-village{color:var(--f-village-border)}
+  .role-entry .role-title.faction-third{color:var(--f-third-border)}
+  </style>
+  <style>
+  /* Role setting label colors: evil (red) and nice/sage (blue) */
+  .role-label.evil{color:var(--f-werewolf-border);font-weight:700}
+  .role-label.good{color:var(--f-village-border);font-weight:700}
+  </style>
+  <style>
+  /* Admin list should match roles_list layout */
+  #admin_list{max-width:1100px;margin:0 auto;padding:0 12px}
+  /* Inline admin edit styles */
+  .admin-title-input{font-size:1.12rem;font-weight:700;padding:8px;border-radius:6px;border:1px solid #ccc;width:60%;box-sizing:border-box}
+  .admin-title-input::placeholder{color:#9aa0a6}
+  .admin-body-edit{width:100%;min-height:100px;padding:8px;border-radius:6px;border:1px solid #ccc;background:#fff;box-sizing:border-box}
+  /* Visual marker for locally-saved / not-server-saved announcements */
+  .panel.unsaved{background: #fff7ec; border:1px solid #ffd8a8}
+  </style>
+  <style>
+  /* Toggle switch (Discord-like) */
+  .switch{display:inline-flex;align-items:center;gap:10px}
+  .switch .switch-label{font-size:0.95rem}
+  .switch input[type=checkbox]{opacity:0;width:0;height:0;position:absolute}
+  .switch .slider{position:relative;display:inline-block;width:46px;height:24px;background:#9ca3af;border-radius:999px;transition:background .12s ease;flex-shrink:0}
+  .switch .slider::after{content:'';position:absolute;left:3px;top:3px;width:18px;height:18px;background:#fff;border-radius:50%;box-shadow:0 1px 2px rgba(0,0,0,0.12);transition:transform .12s ease}
+  .switch input[type=checkbox]:checked + .slider{background:#60a5fa}
+  .switch input[type=checkbox]:checked + .slider::after{transform:translateX(22px)}
+  /* keyboard focus ring */
+  .switch input[type=checkbox]:focus + .slider{box-shadow:0 0 0 3px rgba(59,130,246,0.18)}
+  /* small label to the right of the switch for ON/OFF text */
+  .switch .state{text-transform:none;font-size:0.9rem;color:var(--muted);margin-left:6px}
+  /* small unit label for numeric inputs */
+  .unit{margin-left:8px;color:#666;font-size:0.95rem;white-space:nowrap}
+  </style>
+</head>
+<body>
+
+  <header class="navbar">
+    <div class="nav-brand">Werewolf powered by recorder</div>
+    <nav class="nav-items" role="navigation" aria-label="Main">
+      <a id="menu_editor" class="nav-item active" href="#">人数設定</a>
+      <a id="menu_settings" class="nav-item" href="#">ゲーム設定</a>
+      <a id="menu_roles" class="nav-item" href="#">役職説明</a>
+      <a id="menu_admin" class="nav-item" href="#">運営情報</a>
+    </nav>
+    <div style="display:flex;gap:10px;align-items:center">
+      <label class="small" style="display:flex;align-items:center;gap:8px;margin:0">API Token:
+        <input id="token" type="password" autocomplete="current-password" style="padding:6px;border-radius:6px;border:1px solid #ccc" />
+      </label>
+    </div>
+    <div class="spacer"></div>
+    <div class="small" id="menu_note">表示モードを選択してください</div>
+  </header>
+
+  <div id="view_editor">
+  <div class="controls">
+    <div class="panel flex">
+      <label><input id="autosave" type="checkbox"/> オートセーブ</label>
+      <!-- JSON編集モード不要のため、整形/検証ボタンを削除。表はデフォで表示 -->
+    </div>
+
+    <!-- テーマ切替は不要のため削除 -->
+
+    <div class="spacer"></div>
+
+    <!-- 上部の保存/読み込みは不要。テーブル内のボタンを使ってください -->
+    <div class="flex">
+      <span class="small">表で編集→保存 ボタンを使用してください</span>
+    </div>
+  </div>
+  <!-- JSON は内部で保持（非表示） -->
+  <textarea id="json" style="display:none"></textarea>
+  <div id="status" class="small"></div>
+  </div>
+
+  <!-- Table-based editor container (hidden by default) -->
+  <div id="table_container" style="display:none;padding:18px">
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+      <div style="display:flex;align-items:center;gap:16px">
+        <h2 style="margin:0">人数設定</h2>
+        <button id="add_row" class="ghost" style="margin-left:6px">行を追加</button>
+        <button id="remove_row" class="ghost">行を削除</button>
+      </div>
+      <div class="small" style="margin-left:8px;max-width:480px;line-height:1.4">表内で数値を編集したら保存ボタンを押してください。</div>
+      <div class="spacer"></div>
+      <button id="save_table" class="ghost">保存</button>
+      <button id="table_reload" class="ghost">読み込み</button>
+    </div>
+    <div id="table_wrapper" style="overflow:auto"></div>
+  </div>
+
+  <div id="view_roles" style="display:none">
+    <div class="roles-search-bar">
+      <input id="roles_search" placeholder="検索（役職ID/名称/説明）" />
+      <button id="roles_show_all" class="ghost">全表示</button>
+    </div>
+    <div id="roles_list"></div>
+  </div>
+
+  <div id="view_settings" style="display:none;padding:18px">
+    <div style="max-width:820px;margin:0 auto">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;">
+        <h2 style="margin:0">ゲーム設定</h2>
+        <div style="display:flex;align-items:center;gap:8px;padding:0 8px">
+          <div id="settings_status" class="small" style="margin-right:8px"></div>
+          <button id="settings_save" class="ghost" style="margin-left:6px">保存</button>
+          <button id="settings_load" class="ghost">読み込み</button>
+        </div>
+      </div>
+  <div class="panel" style="margin-bottom:12px">
+  <!-- Settings presented as a 3-column table: 項目 - 注記 - 操作/入力 -->
+  <div style="display:flex;flex-direction:column;gap:0">
+          <!-- header row removed per design (table-like appearance kept) -->
+
+          <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid #eee">
+            <div style="width:240px;font-size:1.05em;font-weight:700">恋人</div>
+            <div style="width:320px;color:#666;font-size:0.9em">デフォルト：無効</div>
+            <div style="flex:1;text-align:right">
+              <label class="switch">
+                <input type="checkbox" id="setting_lovers" />
+                <span class="slider" aria-hidden="true"></span>
+                <span class="state" id="state_lovers"></span>
+              </label>
+            </div>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid #eee">
+            <div style="width:240px;font-size:1.05em;font-weight:700">棄権</div>
+            <div style="width:320px;color:#666;font-size:0.9em">デフォルト：有効</div>
+            <div style="flex:1;text-align:right">
+              <label class="switch">
+                <input type="checkbox" id="setting_allow_abstain" />
+                <span class="slider" aria-hidden="true"></span>
+                <span class="state" id="state_allow_abstain"></span>
+              </label>
+            </div>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid #eee">
+            <div style="width:240px;font-size:1.05em;font-weight:700">投票時間</div>
+            <div style="width:320px;color:#666;font-size:0.9em">投票UIが表示される時間です。0は無制限を表します。</div>
+            <div style="flex:1;text-align:right;display:flex;align-items:center;justify-content:flex-end">
+              <input id="setting_vote_minutes" type="number" min="0" step="1" style="width:120px;padding:8px 10px;border-radius:6px;border:1px solid #ccc;font-size:1em" />
+              <span class="unit">分</span>
+            </div>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid #eee;border-bottom:1px solid #eee">
+            <div style="width:240px;font-size:1.05em;font-weight:700">夜の制限時間</div>
+            <div style="width:320px;color:#666;font-size:0.9em">0は無制限を表します。</div>
+            <div style="flex:1;text-align:right;display:flex;align-items:center;justify-content:flex-end">
+              <input id="setting_night_minutes" type="number" min="0" step="1" style="width:120px;padding:8px 10px;border-radius:6px;border:1px solid #ccc;font-size:1em" />
+              <span class="unit">分</span>
+            </div>
+          </div>
+          <div style="height:1px"></div>
+        </div>
+      </div>
+      <!-- Role-specific settings header (no panel shading, matches game settings header) -->
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;margin-top:28px;">
+        <h2 style="margin:0">役職設定</h2>
+        <div style="display:flex;align-items:center;gap:8px;padding:0 8px">
+          <div id="role_settings_status" class="small" style="margin-right:8px"></div>
+          <button id="role_settings_save" class="ghost" style="margin-left:6px">保存</button>
+          <button id="role_settings_load" class="ghost">読み込み</button>
+        </div>
+      </div>
+      <div class="panel" style="margin-bottom:12px">
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid #eee">
+            <div style="width:240px;font-size:1.05em;font-weight:700"><span class="role-label evil">イビルゲッサー「推測射殺」</span></div>
+            <div style="width:320px;color:#666;font-size:0.9em">デフォルト：1回</div>
+            <div style="flex:1;text-align:right;display:flex;align-items:center;justify-content:flex-end">
+              <input id="role_evil_guesser_kills" type="number" min="0" step="1" value="1" style="width:120px;padding:8px 10px;border-radius:6px;border:1px solid #ccc;font-size:1em" />
+              <span class="unit">回</span>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid #eee">
+            <div style="width:240px;font-size:1.05em;font-weight:700"><span class="role-label good">ナイスゲッサー「推測射殺」</span></div>
+            <div style="width:320px;color:#666;font-size:0.9em">デフォルト：1回</div>
+            <div style="flex:1;text-align:right;display:flex;align-items:center;justify-content:flex-end">
+              <input id="role_nice_guesser_kills" type="number" min="0" step="1" value="1" style="width:120px;padding:8px 10px;border-radius:6px;border:1px solid #ccc;font-size:1em" />
+              <span class="unit">回</span>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid #eee">
+            <div style="width:240px;font-size:1.05em;font-weight:700"><span class="role-label evil">イビルバスカー「偽装死」</span></div>
+            <div style="width:320px;color:#666;font-size:0.9em">デフォルト：1回</div>
+            <div style="flex:1;text-align:right;display:flex;align-items:center;justify-content:flex-end">
+              <input id="role_evil_busker_fake_uses" type="number" min="0" step="1" value="1" style="width:120px;padding:8px 10px;border-radius:6px;border:1px solid #ccc;font-size:1em" />
+              <span class="unit">回</span>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid #eee;border-bottom:1px solid #eee">
+            <div style="width:240px;font-size:1.05em;font-weight:700"><span class="role-label good">賢者「結界」</span></div>
+            <div style="width:320px;color:#666;font-size:0.9em">デフォルト：2回</div>
+            <div style="flex:1;text-align:right;display:flex;align-items:center;justify-content:flex-end">
+              <input id="role_sage_limit" type="number" min="0" step="1" value="2" style="width:120px;padding:8px 10px;border-radius:6px;border:1px solid #ccc;font-size:1em" />
+              <span class="unit">回</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="view_admin" style="display:none;padding:18px 24px">
+    <div class="roles-search-bar">
+      <input id="admin_search" placeholder="検索（タイトル/本文）" />
+      <button id="admin_show_all" class="ghost">全表示</button>
+    </div>
+    <!-- Security warning -->
+    <div class="roles-search-bar" style="margin-top:20px;margin-bottom:12px">
+      <div style="width:100%;padding:12px;background:#fff3cd;border:1px solid #ffc107;border-radius:8px;font-size:0.9rem">
+        ⚠️ <strong>セキュリティ警告:</strong> ここに記載した運営情報は、閲覧専用ページで公開されます。機密情報は記載しないでください。
+      </div>
+    </div>
+    <!-- second line: use same centered container so margins/padding apply consistently -->
+  <div class="roles-search-bar" style="margin-top:20px;margin-bottom:8px;align-items:center">
+      <h2 style="margin:0">お知らせ</h2>
+      <div class="spacer"></div>
+  <button id="admin_new" class="ghost" style="margin-right:8px">お知らせを追加</button>
+      <div>
+        <button id="admin_save_remote" class="ghost">サーバに保存</button>
+      </div>
+    </div>
+    <div id="admin_status" class="small" style="margin-bottom:8px"></div>
+    <div id="admin_list"></div>
+
+    <!-- edit form (hidden by default) -->
+    <div id="admin_editor" class="panel" style="display:none;margin-top:12px">
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+        <label style="width:68px">タイトル</label>
+        <input id="admin_title" style="flex:1;padding:6px;border-radius:6px;border:1px solid #ccc" />
+      </div>
+      <div style="margin-bottom:8px">
+        <label>本文</label>
+        <textarea id="admin_body" style="width:100%;min-height:120px;padding:8px;border-radius:6px;border:1px solid #ccc"></textarea>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button id="admin_save_local" class="ghost">下書きを保存</button>
+        <button id="admin_cancel" class="ghost">キャンセル</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Small helper utilities
+    const statusEl = document.getElementById('status');
+    function setStatus(text, cls){ statusEl.textContent = text || ''; statusEl.className = cls ? cls : 'small'; }
+    // small popup (toast) management
+    const toastHolder = document.createElement('div'); toastHolder.id = 'toast_holder'; document.body.appendChild(toastHolder);
+    let _toastTimers = {};
+    function showToast(msg, type='ok', opts={persistent:false, id:undefined}){
+      const id = opts.id || ('t_'+Date.now()+Math.random().toString(36).slice(2,6));
+      // if already exists with same id, update text
+      let exist = id && document.getElementById(id);
+      if(exist){ exist.textContent = msg; return id; }
+      const d = document.createElement('div'); d.className = 'toast ' + (type||''); if(opts.persistent) d.classList.add('small'); d.id = id; d.textContent = msg;
+      toastHolder.appendChild(d);
+      if(!opts.persistent){ const t = setTimeout(()=>{ try{ d.remove(); delete _toastTimers[id]; }catch(e){} }, 2500); _toastTimers[id]=t; }
+      return id;
+    }
+    function hideToast(id){ try{ const el = document.getElementById(id); if(el) el.remove(); if(_toastTimers[id]){ clearTimeout(_toastTimers[id]); delete _toastTimers[id]; } }catch(e){} }
+  // track dirty state
+  let isDirty = false;
+  let suppressDirty = false;
+  const UNSAVED_TOAST_ID = 'unsaved_toast';
+    const VILLAGER_TOAST_ID = 'villager_error_toast';
+  // track last saved JSON for accurate dirty diffing
+  let lastSavedJson = '';
+  const API_TOKEN_LS_KEY = 'werewolf_api_token';
+  // track last-saved game settings JSON for settings dirty detection
+  let lastSavedSettingsJson = '';
+  let lastSavedSettingsObj = null;
+
+    async function load(){
+      try{
+        const resp = await fetch('/download');
+        if(resp && resp.ok){
+          const text = await resp.text();
+          document.getElementById('json').value = text;
+          lastSavedJson = (text || '').trim();
+          setStatus('読み込み成功', 'ok');
+        } else {
+          document.getElementById('json').value = '{}';
+          lastSavedJson = '{}';
+          setStatus('既存ファイルがありません');
+        }
+      }catch(e){
+        document.getElementById('json').value = '{}';
+        lastSavedJson = '{}';
+        setStatus('読み込み失敗: ' + e, 'error');
+      }
+    }
+
+    function tryParse(){
+      const s = document.getElementById('json').value;
+      try{ return {ok:true, data: JSON.parse(s)} } catch(e){ return {ok:false, error: e} }
+    }
+
+    async function save(){
+      const parsed = tryParse();
+      if(!parsed.ok){ setStatus('保存中止: JSON parse error: ' + parsed.error, 'error'); return; }
+      // persist token in localStorage so it doesn't disappear after save
+      try{ const tk = document.getElementById('token').value || ''; if(tk) localStorage.setItem(API_TOKEN_LS_KEY, tk); }catch(e){}
+  const headers = getAuthHeaders();
+      setStatus('保存中…');
+      try{
+        const resp = await fetch('/save', { method:'POST', headers, body: JSON.stringify(parsed.data) });
+        let j;
+        try{ j = await resp.json(); } catch(e){ j = {ok:false, error:'no-json-response'} }
+        if(j.ok){ setStatus('変更を保存しました', 'ok');
+          // on successful save: clear dirty and update toasts
+          // update lastSavedJson to the freshly saved content
+          try{ lastSavedJson = JSON.stringify(parsed.data, null, 2); }catch(e){ lastSavedJson = document.getElementById('json').value || ''; }
+          isDirty = false; hideToast(UNSAVED_TOAST_ID); showToast('変更を保存しました', 'ok'); }
+        else { setStatus('保存失敗: ' + (j.error || JSON.stringify(j)), 'error'); }
+      }catch(e){ setStatus('保存失敗: ' + e, 'error'); }
+    }
+
+    // JSON pretty-print
+    function formatJson(){
+      const parsed = tryParse();
+      if(!parsed.ok){ setStatus('整形失敗: JSON が不正です: ' + parsed.error, 'error'); return; }
+      document.getElementById('json').value = JSON.stringify(parsed.data, null, 2);
+      setStatus('整形しました', 'ok');
+    }
+
+    // Validation (basic: parse + top-level object check)
+    function validate(){
+      const parsed = tryParse();
+      if(!parsed.ok){ setStatus('検証エラー: JSONが不正です: ' + parsed.error, 'error'); return false; }
+      if(typeof parsed.data !== 'object' || parsed.data === null || Array.isArray(parsed.data)){
+        setStatus('検証エラー: トップレベルはオブジェクトである必要があります', 'error');
+        return false;
+      }
+      setStatus('検証OK', 'ok');
+      return true;
+    }
+
+    // Autosave with debounce
+    let autosaveTimer = null;
+    function scheduleAutosave(){
+      if(!document.getElementById('autosave').checked) return;
+      if(autosaveTimer) clearTimeout(autosaveTimer);
+      autosaveTimer = setTimeout(()=>{
+        if(validate()) save();
+      }, 1200);
+    }
+
+    // ===== Table-based editor logic =====
+  let tableHasError = false;
+  async function buildTableFromTextarea(){
+      const parsed = tryParse();
+      if(!parsed.ok){ setStatus('表形式表示に失敗: JSON が不正です', 'error'); return; }
+      const dist = parsed.data;
+      // determine roles: try to fetch roles.json first and preserve its order
+      let roleKeys = [];
+      let rolesMeta = {};
+      try{
+        const r = await fetch('/roles/roles.json');
+        if(r.ok){ rolesMeta = await r.json(); roleKeys = Object.keys(rolesMeta); }
+      }catch(e){ console.warn('roles.json fetch failed', e); }
+      // remove lovers from table columns per user request
+      roleKeys = roleKeys.filter(k => k !== 'lovers');
+      // also gather roles from distribution that aren't in roles.json and append
+      try{
+        for(const k of Object.keys(dist||{})){
+          const v = dist[k];
+          if(Array.isArray(v)){
+            for(const it of v){ if(typeof it==='string'){
+              const rid = (it.indexOf(':')>-1)? it.split(':',1)[0] : it; if(!roleKeys.includes(rid) && rid !== 'lovers') roleKeys.push(rid);
+            }}
+          } else if(typeof v === 'object' && v !== null){
+            for(const rid of Object.keys(v)){ if(!roleKeys.includes(rid) && rid !== 'lovers') roleKeys.push(rid); }
+          }
+        }
+      }catch(e){ console.warn(e); }
+      if(roleKeys.length===0){ roleKeys = ['werewolf','seer','madman','medium','knight','sage','arsonist','nice_guesser','evil_guesser','bakery','jester','villager']; }
+      // ensure villager column present and at end
+      roleKeys = Array.from(new Set(roleKeys));
+      if(!roleKeys.includes('villager')) roleKeys.push('villager');
+
+      // build rows model
+      const rows = [];
+      for(const k of Object.keys(dist||{})){
+        const n = parseInt(k,10);
+        if(Number.isNaN(n)) continue;
+        const counts = {};
+        for(const r of roleKeys) counts[r]=0;
+        const v = dist[k];
+        if(Array.isArray(v)){
+          for(const it of v){
+            if(typeof it!=='string') continue;
+            if(it.indexOf(':')>-1){ const parts = it.split(':'); const rid = parts[0]; const c = parseInt(parts[1],10)||0; counts[rid]= (counts[rid]||0)+c; }
+            else { const rid = it; counts[rid]= (counts[rid]||0)+1; }
+          }
+        } else if(typeof v === 'object' && v !== null){
+          for(const rid of Object.keys(v)){ const c = parseInt(v[rid],10)||0; counts[rid]=c; }
+        }
+        rows.push({n, counts});
+      }
+      // sort rows ascending
+      rows.sort((a,b)=>a.n-b.n);
+
+  // build table without marking dirty (suppress dirty while initial render)
+  suppressDirty = true;
+  renderTable(roleKeys, rows, rolesMeta);
+  suppressDirty = false;
+  // clear dirty state after a fresh load
+  isDirty = false; hideToast(UNSAVED_TOAST_ID);
+      // show table view
+      document.getElementById('view_editor').style.display='none';
+      document.getElementById('table_container').style.display='block';
+      setStatus('表形式エディタを表示中');
+    }
+
+    function renderTable(roleKeys, rows, rolesMeta){
+      const wrap = document.getElementById('table_wrapper'); wrap.innerHTML='';
+      const table = document.createElement('table');
+      const thead = document.createElement('thead');
+      // First header row: factions with merged cells
+  const fragRow = document.createElement('tr');
+  const fragFirst = document.createElement('th'); fragFirst.textContent='人数'; fragFirst.rowSpan = 2; fragRow.appendChild(fragFirst);
+      // compute display faction label for each role (normalize factions: werewolf/village/third)
+      const normalizeFaction = (f, key) => {
+        if(key === 'madman') return 'werewolf';
+        if(f === 'werewolf') return 'werewolf';
+        if(f === 'village') return 'village';
+        return 'third';
+      };
+      const rawFactionArr = roleKeys.map(k => {
+        const meta = rolesMeta[k] || {};
+        const f = meta.faction || '';
+        return normalizeFaction(f, k);
+      });
+      // map faction id to display name
+      const factionLabel = f => (f === 'werewolf' ? '人狼陣営' : (f === 'village' ? '村人陣営' : '第三陣営'));
+      const labelArr = rawFactionArr.map(f => factionLabel(f));
+      // merge contiguous same-label runs
+      let i = 0;
+      while(i < labelArr.length){
+        const lbl = labelArr[i];
+        let j = i+1; while(j < labelArr.length && labelArr[j] === lbl) j++;
+        const colspan = j - i;
+        const th = document.createElement('th'); th.colSpan = colspan; th.textContent = lbl;
+        // add faction-specific class for coloring (use faction id of first in run)
+        const factionId = rawFactionArr[i] || 'third'; th.className = 'faction-' + factionId;
+        fragRow.appendChild(th);
+        i = j;
+      }
+      thead.appendChild(fragRow);
+  // Second header row: role names (leftmost '人数' already in fragFirst with rowSpan=2)
+  const nameRow = document.createElement('tr');
+  for(const r of roleKeys){ const th = document.createElement('th'); const meta = rolesMeta[r] || {}; const roleName = (meta && meta.name) ? meta.name : r; th.textContent = roleName; // add role header class + normalized faction class
+    const rfRaw = (meta && meta.faction) ? meta.faction : ''; const rf = normalizeFaction(rfRaw, r); th.className = 'role-header faction-' + rf; nameRow.appendChild(th); }
+      thead.appendChild(nameRow);
+      table.appendChild(thead);
+      const tbody = document.createElement('tbody');
+      for(const row of rows){
+        const tr = document.createElement('tr');
+        // first cell: 人数 (editable)
+  const tdN = document.createElement('td'); tdN.className = 'count-cell';
+  tdN.innerHTML = `<div class="cell-inner"><span class="cell-value" contenteditable="true">${row.n}</span><div class="cell-controls"><button class="cell-btn inc">▲</button><button class="cell-btn dec">▼</button></div></div>`;
+  tr.appendChild(tdN);
+        // compute sum of non-villager counts for initial display
+        let nonVillagerSum = 0;
+        for(const r of roleKeys){ if(r === 'villager') continue; nonVillagerSum += (row.counts[r]||0); }
+        const computedVillagers = row.n - nonVillagerSum;
+        for(const r of roleKeys){
+          const td = document.createElement('td');
+          if(r === 'villager'){
+            // villager is computed, not editable
+            td.className = 'villager-display'; td.contentEditable = 'false'; td.textContent = String(computedVillagers);
+          } else {
+            const val = row.counts[r]||0;
+            td.className = 'role-cell'; td.contentEditable = 'false'; td.dataset.role = r;
+            td.innerHTML = `<div class="cell-inner"><span class="cell-value" contenteditable="true">${val}</span><div class="cell-controls"><button class="cell-btn inc">▲</button><button class="cell-btn dec">▼</button></div></div>`;
+          }
+          tr.appendChild(td);
+        }
+        tbody.appendChild(tr);
+      }
+      table.appendChild(tbody); wrap.appendChild(table);
+
+      // attach listeners: on any editable span.cell-value change (contenteditable input), regenerate JSON and update villager displays
+      wrap.querySelectorAll('.cell-value').forEach(el=>{
+        el.addEventListener('input', ()=>{ try{ updateJsonFromTable(); }catch(e){ console.error(e); } });
+        el.addEventListener('blur', ()=>{ updateJsonFromTable(); });
+      });
+      // attach listeners to ▲▼ buttons
+      wrap.querySelectorAll('.cell-btn.inc').forEach(btn=>{
+        btn.addEventListener('click', (e)=>{
+          e.preventDefault(); e.stopPropagation(); const sp = btn.closest('.cell-inner').querySelector('.cell-value'); const v = parseInt((sp.textContent||'0'),10)||0; sp.textContent = String(v+1); updateJsonFromTable();
+        });
+      });
+      wrap.querySelectorAll('.cell-btn.dec').forEach(btn=>{
+        btn.addEventListener('click', (e)=>{
+          e.preventDefault(); e.stopPropagation(); const sp = btn.closest('.cell-inner').querySelector('.cell-value'); const v = parseInt((sp.textContent||'0'),10)||0; const nv = v-1; sp.textContent = String(nv<0?0:nv); updateJsonFromTable();
+        });
+      });
+      // store roleKeys on table for later add_row
+      table._roleKeys = roleKeys.slice();
+      // initial validation
+      updateJsonFromTable();
+    }
+
+    function updateJsonFromTable(){
+      const wrap = document.getElementById('table_wrapper');
+      const table = wrap.querySelector('table'); if(!table) return;
+      const out = {};
+      tableHasError = false;
+      const rows = table.querySelectorAll('tbody tr');
+      rows.forEach(tr=>{
+            // first cell is count-cell; read its inner .cell-value
+            const nspan = tr.querySelector('td.count-cell .cell-value'); const n = parseInt((nspan && nspan.textContent) || '0',10) || 0;
+          let sum = 0;
+          const tokens = [];
+          // gather non-villager cells (they have data-role)
+          tr.querySelectorAll('td.role-cell').forEach(td=>{
+            const rid = td.dataset.role; const span = td.querySelector('.cell-value'); const c = parseInt((span && span.textContent||'0'),10)||0;
+            if(c>0){ sum += c; tokens.push(c>1? `${rid}:${c}` : `${rid}`); }
+          });
+          const villagers = n - sum; // allow negative for detection
+          // update villager display in the row
+          const villCell = tr.querySelector('td.villager-display'); if(villCell) villCell.textContent = String(villagers);
+        if(villagers < 0){
+          // mark row error
+          tr.classList.add('row-error');
+          tableHasError = true;
+        } else {
+          tr.classList.remove('row-error');
+          if(villagers>0){ tokens.push(villagers>1? `villager:${villagers}` : 'villager'); }
+        }
+        out[String(n)] = tokens;
+      });
+      document.getElementById('json').value = JSON.stringify(out, null, 2);
+      const currentJson = JSON.stringify(out, null, 2);
+      document.getElementById('json').value = currentJson;
+      if(tableHasError){
+        setStatus('エラー: 一部行で villager が負数になっています。調整してください。', 'error');
+      } else {
+        setStatus('表を JSON に反映しました', 'ok');
+      }
+      // show or hide persistent villager-negative error toast
+      if(tableHasError){
+        showToast('人数を修正してください', 'error', { persistent:true, id: VILLAGER_TOAST_ID });
+      } else {
+        hideToast(VILLAGER_TOAST_ID);
+      }
+      // mark as dirty (unsaved) only when current JSON differs from lastSavedJson
+      if(!suppressDirty){
+        try{
+          if((lastSavedJson || '').trim() !== currentJson.trim()){
+            if(!isDirty){
+              isDirty = true;
+              showToast('変更が保存されていません', 'warn', { persistent:true, id: UNSAVED_TOAST_ID });
+            }
+          } else {
+            // identical to saved content: clear dirty state
+            if(isDirty){ isDirty = false; hideToast(UNSAVED_TOAST_ID); }
+          }
+        }catch(e){ /* best-effort only */ }
+      }
+    }
+
+    // (table toggle removed) use nav links to switch views
+
+    // table controls
+  // table_to_text removed - replaced by table_reload
+  // document.getElementById('table_to_text') removed
+    document.getElementById('add_row').addEventListener('click', ()=>{
+      const wrap = document.getElementById('table_wrapper'); const table = wrap.querySelector('table');
+      if(!table) return;
+      const tbody = table.querySelector('tbody'); const last = tbody.querySelector('tr:last-child');
+      let nextN = 4;
+  if(last){ const vspan = last.querySelector('td.count-cell .cell-value'); const v = parseInt((vspan && vspan.textContent) || '0',10); nextN = (Number.isFinite(v)? v+1 : (nextN)); }
+      const tr = document.createElement('tr');
+      const tdN = document.createElement('td'); tdN.className='count-cell'; tdN.innerHTML = `<div class="cell-inner"><span class="cell-value" contenteditable="true">${nextN}</span><div class="cell-controls"><button class="cell-btn inc">▲</button><button class="cell-btn dec">▼</button></div></div>`; tr.appendChild(tdN);
+      // read role keys stored on the table by renderTable
+      const roles = table._roleKeys || [];
+      for(const r of roles){ const td = document.createElement('td');
+        if(r === 'villager'){
+          td.className='villager-display'; td.contentEditable='false'; td.textContent = '0';
+        } else {
+          td.className='role-cell'; td.contentEditable='false'; td.dataset.role = r; td.innerHTML = `<div class="cell-inner"><span class="cell-value" contenteditable="true">0</span><div class="cell-controls"><button class="cell-btn inc">▲</button><button class="cell-btn dec">▼</button></div></div>`;
+        }
+        tr.appendChild(td);
+      }
+      tbody.appendChild(tr);
+      // attach listeners only to editable spans/buttons inside the new row
+      tr.querySelectorAll('.cell-value').forEach(el=>{ el.addEventListener('input', ()=> updateJsonFromTable()); el.addEventListener('blur', ()=> updateJsonFromTable()); });
+      tr.querySelectorAll('.cell-btn.inc').forEach(btn=>{ btn.addEventListener('click', (e)=>{ e.preventDefault(); e.stopPropagation(); const sp = btn.closest('.cell-inner').querySelector('.cell-value'); const v = parseInt((sp.textContent||'0'),10)||0; sp.textContent = String(v+1); updateJsonFromTable(); }); });
+      tr.querySelectorAll('.cell-btn.dec').forEach(btn=>{ btn.addEventListener('click', (e)=>{ e.preventDefault(); e.stopPropagation(); const sp = btn.closest('.cell-inner').querySelector('.cell-value'); const v = parseInt((sp.textContent||'0'),10)||0; const nv = v-1; sp.textContent = String(nv<0?0:nv); updateJsonFromTable(); }); });
+      updateJsonFromTable();
+    });
+    document.getElementById('remove_row').addEventListener('click', ()=>{
+      const wrap = document.getElementById('table_wrapper'); const table = wrap.querySelector('table'); if(!table) return;
+      const tbody = table.querySelector('tbody'); const last = tbody.querySelector('tr:last-child'); if(last) last.remove(); updateJsonFromTable();
+    });
+    document.getElementById('save_table').addEventListener('click', ()=>{
+      // ensure table is reflected to JSON and validate
+      updateJsonFromTable();
+      if(tableHasError){ setStatus('保存中止: エラーがあるため保存できません。'); return; }
+      // perform the same save as text mode
+      save();
+    });
+    document.getElementById('table_reload').addEventListener('click', ()=>{
+      // reload role_distribution from server and rebuild table
+      load();
+      // buildTableFromTextarea will be triggered when load completes because load() updates hidden json and setStatus; so call build after slight delay
+      setTimeout(()=>{ buildTableFromTextarea(); }, 200);
+    });
+    // ===== end table editor =====
+
+  // Theme handling removed (dark mode not needed)
+
+    // View switching: ensure only one of editor/table/roles is visible and nav active state is kept in sync
+    function showView(name){
+      // hide everything first
+      document.getElementById('view_editor').style.display = 'none';
+      document.getElementById('table_container').style.display = 'none';
+      document.getElementById('view_roles').style.display = 'none';
+    document.getElementById('view_settings').style.display = 'none';
+      // hide admin view and any open editor when switching away
+      const adminView = document.getElementById('view_admin'); if(adminView) adminView.style.display = 'none';
+      const adminEditor = document.getElementById('admin_editor'); if(adminEditor) adminEditor.style.display = 'none';
+      try{ editingId = null; }catch(e){}
+
+      // clear nav active
+      document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+
+      if(name === 'editor'){
+        // show table editor for settings
+        document.getElementById('table_container').style.display = 'block';
+  document.getElementById('menu_note').textContent = '人数設定モード';
+        const el = document.getElementById('menu_editor'); if(el) el.classList.add('active');
+        // build table from current JSON storage
+        buildTableFromTextarea();
+      } else if(name === 'roles'){
+        document.getElementById('view_roles').style.display = '';
+        document.getElementById('menu_note').textContent = '役職説明モード';
+        const el = document.getElementById('menu_roles'); if(el) el.classList.add('active');
+        // load roles when showing the roles view
+        loadRoles();
+      } else if(name === 'admin'){
+        document.getElementById('view_admin').style.display = '';
+        document.getElementById('menu_note').textContent = '運営情報モード';
+        const el2 = document.getElementById('menu_admin'); if(el2) el2.classList.add('active');
+        // load admin announcements
+        showAdminView();
+      } else if(name === 'settings'){
+        document.getElementById('view_settings').style.display = '';
+        document.getElementById('menu_note').textContent = 'ゲーム設定モード';
+        const el3 = document.getElementById('menu_settings'); if(el3) el3.classList.add('active');
+        // load settings
+        showSettingsView();
+      } else if(name === 'table'){
+        // show table editor (hide text editor)
+        document.getElementById('table_container').style.display = 'block';
+        document.getElementById('menu_note').textContent = '表形式編集モード';
+        const el = document.getElementById('menu_editor'); if(el) el.classList.add('active');
+      }
+    }
+
+    // wire nav to showView to keep single-source-of-truth for visibility and active state
+    document.getElementById('menu_editor').addEventListener('click', (e)=>{ e.preventDefault(); showView('editor'); });
+    document.getElementById('menu_roles').addEventListener('click', (e)=>{ e.preventDefault(); showView('roles'); });
+  document.getElementById('menu_admin').addEventListener('click', (e)=>{ e.preventDefault(); showView('admin'); });
+
+    // Roles view logic
+    let rolesData = null;
+    async function loadRoles(){
+      setStatus('役職データをロード中…');
+      // try multiple locations: local static roles.json, /download (role_distribution), /roles/roles.json
+  const candidates = ['/roles/roles.json', 'roles.json', '/download'];
+      for(const url of candidates){
+        try{
+          const resp = await fetch(url);
+          if(!resp.ok) continue;
+          const j = await resp.json();
+          // normalize: if mapping role_id -> {name,faction} or our roles.json
+          // detect by checking value type
+          const sampleKey = Object.keys(j)[0];
+          const sampleVal = j[sampleKey];
+          if(typeof sampleVal === 'object' && (sampleVal.name || sampleVal.faction || sampleVal.description)){
+            rolesData = j; break;
+          }
+        }catch(e){ continue; }
+      }
+      if(!rolesData){
+        // attempt final fallback to static file (local copy inside UI dir)
+        try{ const r = await fetch('roles.json'); if(r.ok) rolesData = await r.json(); }catch(e){}
+      }
+      if(!rolesData){ setStatus('役職データが見つかりません', 'error'); document.getElementById('roles_list').innerHTML=''; return; }
+      renderRoles(); setStatus('役職データ読み込み完了', 'ok');
+    }
+
+    function renderRoles(filter=''){
+      const list = document.getElementById('roles_list'); list.innerHTML='';
+      const q = filter.trim().toLowerCase();
+      // group by faction: map canonical faction -> display name
+      const groups = { '人狼陣営':[], '村人陣営':[], '第三陣営':[] };
+      // normalize faction -> group mapping for rendering: werewolf / village / third
+      const normFaction = (f, key) => {
+        if(key === 'madman') return 'werewolf';
+        if(f === 'werewolf') return 'werewolf';
+        if(f === 'village') return 'village';
+        return 'third';
+      };
+      for(const k of Object.keys(rolesData)){
+        const item = rolesData[k];
+        const factionRaw = (item && item.faction) ? item.faction : '';
+        const nf = normFaction(factionRaw, k);
+        let g = '第三陣営';
+        if(nf === 'werewolf') g = '人狼陣営';
+        else if(nf === 'village') g = '村人陣営';
+        groups[g].push(k);
+      }
+      // no external text explanations: rolesData includes all roles now
+      // render each group with header
+      for(const header of ['人狼陣営','村人陣営','第三陣営']){
+        const keys = groups[header];
+        if(!keys || keys.length===0) continue;
+        const sect = document.createElement('div'); sect.className='role-section';
+        const h = document.createElement('h3'); h.textContent = header; sect.appendChild(h);
+        for(const k of keys){
+          const item = rolesData[k] || {};
+          const name = (item && item.name) ? item.name : k;
+          const desc = (item && item.description) ? item.description : '';
+          const abbr = (item && item.abbr) ? item.abbr : '';
+          const container = document.createElement('div');
+          // panel gets faction accent class (left border) - use normalized faction
+          const factionId = normFaction((item && item.faction) ? item.faction : '', k);
+          container.className = 'panel ' + 'faction-' + factionId; container.style.marginBottom='8px';
+          // role entry: title, id, toggle V button
+          const entry = document.createElement('div'); entry.className='role-entry';
+          const btn = document.createElement('button'); btn.className='toggle-tri ' + 'faction-' + factionId; btn.innerHTML = '<span class="tri">▶</span>';
+          const titleWrap = document.createElement('div');
+          titleWrap.innerHTML = `<span class="role-title ${'faction-'+factionId}">${name}</span> <span class="role-meta">(${k}${abbr? ' / '+abbr : ''})</span>`;
+          entry.appendChild(btn); entry.appendChild(titleWrap);
+          container.appendChild(entry);
+          // description area (hidden by default)
+          const d = document.createElement('div'); d.className='role-desc small'; d.innerHTML = desc.replace(/\n/g,'<br>'); container.appendChild(d);
+          // toggle behavior (rotate tri)
+          btn.addEventListener('click', ()=>{
+            const isShown = d.style.display === 'block';
+            d.style.display = isShown ? 'none' : 'block';
+            if(isShown) btn.classList.remove('open'); else btn.classList.add('open');
+          });
+          // filter
+          const txt = (k + ' ' + name + ' ' + desc + ' ' + (item && item.faction ? item.faction : '')).toLowerCase();
+          if(q && txt.indexOf(q) === -1) continue;
+          sect.appendChild(container);
+        }
+        if(sect.children.length>1) list.appendChild(sect);
+      }
+      if(list.children.length===0) list.innerHTML = '<div class="small">該当する役職はありません</div>';
+    }
+
+  // roles_reload button removed - use browser refresh or '全表示' as needed
+  document.getElementById('roles_show_all').addEventListener('click', ()=> renderRoles(''));
+  document.getElementById('roles_search').addEventListener('input', (e)=> renderRoles(e.target.value));
+  // admin search wiring: filter announcements list when typing in the admin search box
+  try{
+    const adminSearchEl = document.getElementById('admin_search');
+    if(adminSearchEl) adminSearchEl.addEventListener('input', (e)=> renderAdminList(e.target.value));
+    // wire the "全表示" button to show all announcements (clear filter)
+    const adminShowAllEl = document.getElementById('admin_show_all');
+    if(adminShowAllEl) adminShowAllEl.addEventListener('click', ()=> renderAdminList(''));
+  }catch(e){}
+
+    // === Admin announcements logic ===
+    const ADMIN_LS_KEY = 'werewolf_announcements_v1';
+    let announcements = [];
+    let editingId = null;
+
+    async function loadAnnouncements(){
+      setStatus('お知らせを読み込み中…');
+      document.getElementById('admin_status').textContent = '';
+      // try server endpoint first
+      try{
+        const resp = await fetch('/announcements');
+        if(resp.ok){
+          const j = await resp.json();
+          if(Array.isArray(j)){
+            // mark server-loaded announcements as saved_remote = true
+            announcements = j.map(x => Object.assign({}, x, { saved_remote: true }));
+            renderAdminList(); setStatus('お知らせを読み込みました', 'ok'); return;
+          }
+        }
+      }catch(e){ /* ignore, fallback to local */ }
+      // fallback to localStorage
+    try{ const raw = localStorage.getItem(ADMIN_LS_KEY); if(raw){ announcements = JSON.parse(raw);
+      // ensure saved_remote flag exists (defaults to false for local drafts)
+      announcements = announcements.map(x => (typeof x.saved_remote === 'undefined') ? Object.assign({}, x, { saved_remote:false }) : x);
+      renderAdminList(); setStatus('ローカルの下書きを読み込みました', 'ok'); return; } }
+      catch(e){ console.warn('local load failed', e); }
+      announcements = []; renderAdminList(); setStatus('お知らせがありません');
+    }
+
+    function renderAdminList(filter=''){
+      const el = document.getElementById('admin_list'); el.innerHTML='';
+      const q = (filter||'').trim().toLowerCase();
+      if(!announcements || announcements.length===0){ el.innerHTML = '<div class="small">お知らせはありません</div>'; return; }
+      // show newest first
+      announcements.slice().reverse().forEach(a=>{
+        // basic text filter against title/body
+        const txt = ((a && a.title) ? a.title : '') + ' ' + ((a && a.body) ? a.body : '');
+        if(q && txt.toLowerCase().indexOf(q) === -1) return; // skip non-matching
+        const box = document.createElement('div'); box.className='panel'; box.style.marginBottom='8px'; box.dataset.id = a.id;
+        const h = document.createElement('div'); h.style.display='flex'; h.style.alignItems='center';
+        const t = document.createElement('div'); t.style.fontWeight='700'; t.className='admin-title'; t.textContent = a.title || '(無題)';
+        const meta = document.createElement('div'); meta.className='small'; meta.style.marginLeft='8px';
+        // display date in Japan Standard Time (JST)
+        let dtText = '';
+        if(a && a.date){
+          try{ const d = new Date(a.date); dtText = d.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }); }
+          catch(e){ dtText = a.date; }
+        }
+        meta.textContent = dtText;
+        // create spacer early so other elements can reference it safely
+        const spacer = document.createElement('div'); spacer.className='spacer';
+        // append title, timestamp, and spacer to header
+        h.appendChild(t); h.appendChild(meta); h.appendChild(spacer);
+        // if this announcement is only saved locally, show an unsaved hint next to the time
+        if(a && a.saved_remote === false){
+          const unsNote = document.createElement('div');
+          unsNote.className = 'small';
+          unsNote.style.color = '#b45309';
+          unsNote.style.marginLeft = '8px';
+          unsNote.textContent = 'サーバに保存されていません';
+          // insert immediately after the timestamp meta element, before the spacer
+          try{ h.insertBefore(unsNote, spacer); }catch(e){ h.appendChild(unsNote); }
+        }
+        const btns = document.createElement('div'); btns.style.display='flex'; btns.style.gap='8px';
+  const edit = document.createElement('button'); edit.className='ghost'; edit.textContent='編集';
+        const del = document.createElement('button'); del.className='ghost'; del.textContent='削除';
+        // inline edit handler
+        edit.addEventListener('click', ()=>{
+          enterInlineEditMode(box, a);
+        });
+        del.addEventListener('click', ()=>{ if(!confirm('本当に削除しますか？')) return; announcements = announcements.filter(x=>x.id!==a.id); persistLocal(); renderAdminList(); showToast('削除しました', 'ok'); });
+        btns.appendChild(edit); btns.appendChild(del); h.appendChild(btns);
+        box.appendChild(h);
+        const b = document.createElement('div'); b.className='small admin-body'; b.style.marginTop='8px'; b.innerHTML = (a.body||'').replace(/\n/g,'<br>'); box.appendChild(b);
+        // mark unsaved (locally saved but not on server)
+        if(a && a.saved_remote === false){ box.classList.add('unsaved'); }
+        el.appendChild(box);
+      });
+
+      // helper: switch a box into inline edit mode
+      function enterInlineEditMode(box, ann){
+        if(!box || !ann) return;
+        // replace title and body with inputs
+        const titleEl = box.querySelector('.admin-title');
+        const bodyEl = box.querySelector('.admin-body');
+        const origTitle = ann.title || '';
+        const origBody = ann.body || '';
+  const input = document.createElement('input'); input.type='text'; input.value = origTitle; input.placeholder = 'タイトル'; input.className = 'admin-title-input';
+  const ta = document.createElement('textarea'); ta.value = origBody; ta.className = 'admin-body-edit'; ta.style.marginTop='8px';
+        titleEl.replaceWith(input);
+        bodyEl.replaceWith(ta);
+        // replace buttons: save / cancel
+        const headerBtns = box.querySelector('div').querySelectorAll('button');
+        const btnContainer = headerBtns[0].parentElement;
+        btnContainer.innerHTML = '';
+        const saveBtn = document.createElement('button'); saveBtn.className='ghost'; saveBtn.textContent='保存';
+        const cancelBtn = document.createElement('button'); cancelBtn.className='ghost'; cancelBtn.textContent='キャンセル';
+        btnContainer.appendChild(saveBtn); btnContainer.appendChild(cancelBtn);
+        saveBtn.addEventListener('click', ()=>{
+          const newTitle = input.value.trim(); const newBody = ta.value.trim();
+          if(!newTitle && !newBody){ showToast('タイトルか本文を入力してください', 'error'); return; }
+          ann.title = newTitle; ann.body = newBody; ann.date = (new Date()).toISOString();
+          // mark as local-only (not yet saved to server)
+          ann.saved_remote = false;
+          persistLocal(); renderAdminList(); showToast('下書きを保存しました', 'ok');
+        });
+        cancelBtn.addEventListener('click', ()=>{ renderAdminList(); });
+      }
+    }
+
+    function persistLocal(){ localStorage.setItem(ADMIN_LS_KEY, JSON.stringify(announcements)); }
+
+    function openEditor(id=null){
+      const ed = document.getElementById('admin_editor'); ed.style.display='block';
+      editingId = id;
+      if(id){ const a = announcements.find(x=>x.id===id); if(a){ document.getElementById('admin_title').value = a.title || ''; document.getElementById('admin_body').value = a.body || ''; }} else { document.getElementById('admin_title').value=''; document.getElementById('admin_body').value=''; }
+    }
+
+    document.getElementById('admin_new').addEventListener('click', ()=>{
+      // create a new empty announcement and open inline editor on it (newest-first)
+      const now = (new Date()).toISOString();
+      const nid = 'a_'+Date.now().toString(36);
+  announcements.push({ id: nid, title:'', body:'', date: now, saved_remote:false });
+      persistLocal();
+      renderAdminList();
+      // after render, activate inline edit on the top-most panel (newest-first)
+      try{ const first = document.getElementById('admin_list').querySelector('.panel'); if(first){ const editBtn = first.querySelector('button'); if(editBtn) editBtn.click(); } }catch(e){}
+    });
+    document.getElementById('admin_cancel').addEventListener('click', ()=>{ document.getElementById('admin_editor').style.display='none'; editingId=null; });
+  // admin_reload button removed - use browser refresh or '全表示' as needed
+    document.getElementById('admin_save_local').addEventListener('click', ()=>{
+      const t = document.getElementById('admin_title').value.trim(); const b = document.getElementById('admin_body').value.trim();
+      if(!t && !b){ setStatus('タイトルか本文を入力してください', 'error'); return; }
+      const now = (new Date()).toISOString();
+  if(editingId){ const a = announcements.find(x=>x.id===editingId); if(a){ a.title = t; a.body = b; a.date = now; a.saved_remote = false; } }
+  else { announcements.push({ id: 'a_'+Date.now().toString(36), title:t, body:b, date:now, saved_remote:false }); }
+      persistLocal(); renderAdminList(); document.getElementById('admin_editor').style.display='none'; showToast('下書きを保存しました', 'ok');
+    });
+
+    // attempt to save announcements to server via POST /announcements; include token if provided
+    async function saveAnnouncementsToServer(){
+      setStatus('サーバへ保存中…');
+      try{
+        const headers = getAuthHeaders();
+        const resp = await fetch('/announcements', { method:'POST', headers, body: JSON.stringify(announcements) });
+    if(resp.ok){ const j = await resp.json(); if(j && j.ok){
+      // mark all announcements as saved on server
+      announcements = announcements.map(x => Object.assign({}, x, { saved_remote: true }));
+      persistLocal(); renderAdminList();
+      setStatus('サーバ保存に成功しました', 'ok'); showToast('サーバに保存しました','ok'); return; } }
+    setStatus('サーバ保存に失敗しました', 'error'); showToast('サーバ保存に失敗しました','error');
+      }catch(e){ setStatus('サーバ保存に失敗: ' + e, 'error'); showToast('サーバ保存に失敗','error'); }
+    }
+
+    document.getElementById('admin_save_remote').addEventListener('click', ()=> saveAnnouncementsToServer());
+
+    // bootstrap announcements when admin view is opened
+    function showAdminView(){ loadAnnouncements(); }
+
+    // === Game settings logic ===
+    const SETTINGS_LS_KEY = 'werewolf_game_settings_v1';
+  let gameSettings = {};
+  let settingsDirty = false;
+
+  // === Role settings logic ===
+  const ROLE_SETTINGS_LS_KEY = 'werewolf_role_settings_v1';
+  let roleSettings = {};
+  let roleSettingsDirty = false;
+  let lastSavedRoleSettingsJson = '';
+  let lastSavedRoleSettingsObj = null;
+
+    async function loadGameSettings(){
+      setStatus('ゲーム設定を読み込み中…');
+      document.getElementById('settings_status').textContent = '';
+      try{
+        const resp = await fetch('/game_settings');
+  if(resp.ok){ const j = await resp.json(); if(j && typeof j === 'object' && !Array.isArray(j)){ gameSettings = j; try{ lastSavedSettingsJson = JSON.stringify(j, null, 2); lastSavedSettingsObj = j; }catch(e){ lastSavedSettingsJson = ''; lastSavedSettingsObj = null; } renderGameSettings(); setStatus('サーバから設定を読み込みました', 'ok'); return; } }
+      }catch(e){ /* fallback to local */ }
+      // fallback to localStorage
+  try{ const raw = localStorage.getItem(SETTINGS_LS_KEY); if(raw){ gameSettings = JSON.parse(raw); try{ lastSavedSettingsJson = JSON.stringify(gameSettings, null, 2); lastSavedSettingsObj = gameSettings; }catch(e){ lastSavedSettingsJson = ''; lastSavedSettingsObj = null; } renderGameSettings(); setStatus('ローカルの下書きを読み込みました', 'ok'); return; } }
+      catch(e){ console.warn('settings local load failed', e); }
+    // defaults (棄権はデフォルトで許可)
+    gameSettings = { lovers: false, allow_abstain: true, vote_minutes: 10, night_minutes: 5 };
+  try{ lastSavedSettingsJson = JSON.stringify(gameSettings, null, 2); lastSavedSettingsObj = Object.assign({}, gameSettings); }catch(e){ lastSavedSettingsJson = ''; lastSavedSettingsObj = null; }
+      renderGameSettings(); setStatus('初期設定を読み込みました', 'ok');
+    }
+
+    function renderGameSettings(){
+      try{
+        document.getElementById('setting_lovers').checked = !!gameSettings.lovers;
+        document.getElementById('setting_allow_abstain').checked = !!gameSettings.allow_abstain;
+        document.getElementById('setting_vote_minutes').value = (typeof gameSettings.vote_minutes === 'number') ? String(gameSettings.vote_minutes) : (gameSettings.vote_minutes || '');
+        document.getElementById('setting_night_minutes').value = (typeof gameSettings.night_minutes === 'number') ? String(gameSettings.night_minutes) : (gameSettings.night_minutes || '');
+  // role-specific settings are rendered in the separate 役職設定パネル
+        // update ON/OFF state labels
+        try{ updateStateText('lovers'); updateStateText('allow_abstain'); }catch(e){}
+        // reset dirty flag when rendering loaded settings
+        try{ settingsDirty = false; hideToast(UNSAVED_TOAST_ID); }catch(e){}
+      }catch(e){ console.warn('renderGameSettings failed', e); }
+    }
+
+    function getSettingsFromDOM(){
+      try{
+        return {
+          lovers: !!document.getElementById('setting_lovers').checked,
+          allow_abstain: !!document.getElementById('setting_allow_abstain').checked,
+          vote_minutes: parseInt(document.getElementById('setting_vote_minutes').value||'0',10) || 0,
+          night_minutes: parseInt(document.getElementById('setting_night_minutes').value||'0',10) || 0,
+          // sage_limit is part of roleSettings now; keep game settings focused
+        };
+      }catch(e){ return { lovers:false, allow_abstain:true, vote_minutes:10, night_minutes:5 }; }
+    }
+
+    function markSettingsDirty(){
+      try{
+        // compute current settings JSON and compare to lastSavedSettingsJson
+        const cur = JSON.stringify(getSettingsFromDOM(), null, 2);
+        try{
+          // compare fields to avoid formatting/order issues
+          const curObj = JSON.parse(cur);
+          const prev = lastSavedSettingsObj || {};
+          const same = (prev.lovers === curObj.lovers && prev.allow_abstain === curObj.allow_abstain && Number(prev.vote_minutes) === Number(curObj.vote_minutes) && Number(prev.night_minutes) === Number(curObj.night_minutes));
+          if(!same){
+            if(!settingsDirty){ settingsDirty = true; showToast('設定が保存されていません', 'warn', { persistent:true, id: UNSAVED_TOAST_ID }); }
+          } else {
+            if(settingsDirty){ settingsDirty = false; hideToast(UNSAVED_TOAST_ID); }
+          }
+        }catch(e){
+          // fallback to string compare if parse fails
+          if((lastSavedSettingsJson||'').trim() !== cur.trim()){
+            if(!settingsDirty){ settingsDirty = true; showToast('設定が保存されていません', 'warn', { persistent:true, id: UNSAVED_TOAST_ID }); }
+          } else {
+            if(settingsDirty){ settingsDirty = false; hideToast(UNSAVED_TOAST_ID); }
+          }
+        }
+      }catch(e){}
+    }
+
+    function updateStateText(key){
+      try{
+        if(key === 'lovers'){
+          const el = document.getElementById('setting_lovers'); const s = document.getElementById('state_lovers'); if(el && s) s.textContent = el.checked ? 'オン' : 'オフ';
+        } else if(key === 'allow_abstain'){
+          const el = document.getElementById('setting_allow_abstain'); const s = document.getElementById('state_allow_abstain'); if(el && s) s.textContent = el.checked ? 'オン' : 'オフ';
+        }
+      }catch(e){ }
+    }
+
+    function persistSettingsLocal(){
+      try{ localStorage.setItem(SETTINGS_LS_KEY, JSON.stringify(gameSettings)); }catch(e){ console.warn('persist local failed', e); }
+    }
+
+    // === Role settings helpers ===
+    function persistRoleSettingsLocal(){ try{ localStorage.setItem(ROLE_SETTINGS_LS_KEY, JSON.stringify(roleSettings)); }catch(e){ console.warn('persist role local failed', e); } }
+
+    function getRoleSettingsFromDOM(){ try{ return {
+        sage_limit: parseInt(document.getElementById('role_sage_limit').value||'0',10) || 0,
+        evil_guesser_kills: parseInt(document.getElementById('role_evil_guesser_kills').value||'0',10) || 1,
+        nice_guesser_kills: parseInt(document.getElementById('role_nice_guesser_kills').value||'0',10) || 1,
+        evil_busker_fake_uses: parseInt(document.getElementById('role_evil_busker_fake_uses')?.value||'0',10) || 1
+      }; }catch(e){ return { sage_limit: 2, evil_guesser_kills: 1, nice_guesser_kills: 1, evil_busker_fake_uses: 1 }; } }
+
+    function renderRoleSettings(){ try{
+        document.getElementById('role_sage_limit').value = (typeof roleSettings.sage_limit === 'number') ? String(roleSettings.sage_limit) : (roleSettings.sage_limit || '2');
+        document.getElementById('role_evil_guesser_kills').value = (typeof roleSettings.evil_guesser_kills === 'number') ? String(roleSettings.evil_guesser_kills) : (roleSettings.evil_guesser_kills || '1');
+        document.getElementById('role_nice_guesser_kills').value = (typeof roleSettings.nice_guesser_kills === 'number') ? String(roleSettings.nice_guesser_kills) : (roleSettings.nice_guesser_kills || '1');
+        try{ document.getElementById('role_evil_busker_fake_uses').value = (typeof roleSettings.evil_busker_fake_uses === 'number') ? String(roleSettings.evil_busker_fake_uses) : (roleSettings.evil_busker_fake_uses || '1'); }catch(e){}
+        roleSettingsDirty = false; hideToast(UNSAVED_TOAST_ID);
+      }catch(e){ console.warn('renderRoleSettings failed', e); } }
+
+    function markRoleSettingsDirty(){ try{ const cur = JSON.stringify(getRoleSettingsFromDOM(), null, 2); try{ const curObj = JSON.parse(cur); const prev = lastSavedRoleSettingsObj || {}; const same = (
+          Number(prev.sage_limit) === Number(curObj.sage_limit) &&
+          Number(prev.evil_guesser_kills || 1) === Number(curObj.evil_guesser_kills || 1) &&
+          Number(prev.nice_guesser_kills || 1) === Number(curObj.nice_guesser_kills || 1)
+          && Number(prev.evil_busker_fake_uses || 1) === Number(curObj.evil_busker_fake_uses || 1)
+        ); if(!same){ if(!roleSettingsDirty){ roleSettingsDirty = true; showToast('役職設定が保存されていません', 'warn', { persistent:true, id: 'role_unsaved_toast' }); } } else { if(roleSettingsDirty){ roleSettingsDirty = false; hideToast('role_unsaved_toast'); } } }catch(e){ if((lastSavedRoleSettingsJson||'').trim() !== cur.trim()){ if(!roleSettingsDirty){ roleSettingsDirty = true; showToast('役職設定が保存されていません', 'warn', { persistent:true, id: 'role_unsaved_toast' }); } } else { if(roleSettingsDirty){ roleSettingsDirty = false; hideToast('role_unsaved_toast'); } } } }catch(e){} }
+
+    async function loadRoleSettings(){ document.getElementById('role_settings_status').textContent = ''; try{ const resp = await fetch('/role_settings'); if(resp.ok){ const j = await resp.json(); if(j && typeof j === 'object' && !Array.isArray(j)){ roleSettings = j; try{ lastSavedRoleSettingsJson = JSON.stringify(j, null, 2); lastSavedRoleSettingsObj = j; }catch(e){ lastSavedRoleSettingsJson = ''; lastSavedRoleSettingsObj = null; } renderRoleSettings(); document.getElementById('role_settings_status').textContent = ''; return; } } }catch(e){}
+      // fallback to local
+      try{ const raw = localStorage.getItem(ROLE_SETTINGS_LS_KEY); if(raw){ roleSettings = JSON.parse(raw); try{ lastSavedRoleSettingsJson = JSON.stringify(roleSettings, null, 2); lastSavedRoleSettingsObj = roleSettings; }catch(e){ lastSavedRoleSettingsJson = ''; lastSavedRoleSettingsObj = null; } renderRoleSettings(); document.getElementById('role_settings_status').textContent = 'ローカルの下書きを読み込みました'; return; } }catch(e){ console.warn('role settings local load failed', e); }
+      // defaults
+      roleSettings = { sage_limit: 2, evil_guesser_kills: 1, nice_guesser_kills: 1, evil_busker_fake_uses: 1 }; try{ lastSavedRoleSettingsJson = JSON.stringify(roleSettings, null, 2); lastSavedRoleSettingsObj = Object.assign({}, roleSettings); }catch(e){ lastSavedRoleSettingsJson = ''; lastSavedRoleSettingsObj = null; }
+      renderRoleSettings(); document.getElementById('role_settings_status').textContent = '';
+    }
+
+  async function saveRoleSettingsToServer(){ roleSettings = getRoleSettingsFromDOM(); document.getElementById('role_settings_status').textContent = ''; try{ const headers = getAuthHeaders(); const resp = await fetch('/role_settings', { method:'POST', headers, body: JSON.stringify(roleSettings) }); if(resp.ok){ const j = await resp.json(); if(j && j.ok){ roleSettingsDirty = false; hideToast('role_unsaved_toast'); lastSavedRoleSettingsJson = JSON.stringify(roleSettings, null, 2); lastSavedRoleSettingsObj = Object.assign({}, roleSettings); persistRoleSettingsLocal(); showToast('役職設定をサーバに保存しました', 'ok'); return; } } document.getElementById('role_settings_status').textContent = 'サーバ保存に失敗しました'; showToast('役職設定のサーバ保存に失敗しました', 'error'); }catch(e){ document.getElementById('role_settings_status').textContent = 'サーバ保存に失敗'; showToast('役職設定のサーバ保存に失敗しました','error'); } }
+
+    // helper: return headers with persisted token if present
+    function getAuthHeaders(contentType='application/json'){
+      const headers = {'Content-Type': contentType};
+      try{ const tk = document.getElementById('token').value || localStorage.getItem(API_TOKEN_LS_KEY) || ''; if(tk) headers['X-API-Token'] = tk; }catch(e){}
+      return headers;
+    }
+
+    async function saveSettingsToServer(){
+      // collect current values into gameSettings
+      gameSettings.lovers = !!document.getElementById('setting_lovers').checked;
+      gameSettings.allow_abstain = !!document.getElementById('setting_allow_abstain').checked;
+      gameSettings.vote_minutes = parseInt(document.getElementById('setting_vote_minutes').value||'0',10) || 0;
+      gameSettings.night_minutes = parseInt(document.getElementById('setting_night_minutes').value||'0',10) || 0;
+  // role-specific settings are saved separately (roleSettings)
+      setStatus('サーバへ保存中…'); document.getElementById('settings_status').textContent='';
+      try{
+        const headers = getAuthHeaders();
+        const resp = await fetch('/game_settings', { method:'POST', headers, body: JSON.stringify(gameSettings) });
+        if(resp.ok){ const j = await resp.json(); if(j && j.ok){ setStatus('サーバ保存に成功しました', 'ok'); try{ settingsDirty = false; hideToast(UNSAVED_TOAST_ID); lastSavedSettingsJson = JSON.stringify(gameSettings, null, 2); }catch(e){} showToast('サーバに保存しました','ok'); persistSettingsLocal(); return; } }
+        setStatus('サーバ保存に失敗しました', 'error'); showToast('サーバ保存に失敗しました','error');
+      }catch(e){ setStatus('サーバ保存に失敗: ' + e, 'error'); showToast('サーバ保存に失敗','error'); }
+    }
+
+  function showSettingsView(){ loadGameSettings(); loadRoleSettings(); }
+
+    // wire settings buttons
+  document.getElementById('settings_load').addEventListener('click', ()=> { loadGameSettings(); loadRoleSettings(); });
+    // unified save: persist locally and then attempt server save
+    document.getElementById('settings_save').addEventListener('click', ()=>{
+      // collect current values into gameSettings
+      gameSettings.lovers = !!document.getElementById('setting_lovers').checked;
+      gameSettings.allow_abstain = !!document.getElementById('setting_allow_abstain').checked;
+      gameSettings.vote_minutes = parseInt(document.getElementById('setting_vote_minutes').value||'0',10) || 0;
+      gameSettings.night_minutes = parseInt(document.getElementById('setting_night_minutes').value||'0',10) || 0;
+  // role settings saved separately
+      // persist locally first
+      try{ persistSettingsLocal(); lastSavedSettingsJson = JSON.stringify(gameSettings, null, 2); settingsDirty = false; hideToast(UNSAVED_TOAST_ID); }catch(e){ console.warn('local persist failed', e); }
+      // then attempt server save (will update status/toasts on success/failure)
+      saveSettingsToServer();
+    });
+
+    // wire nav item for settings
+    document.getElementById('menu_settings').addEventListener('click', (e)=>{ e.preventDefault(); showView('settings'); });
+
+    // wire role settings buttons and input
+    try{
+      const rload = document.getElementById('role_settings_load'); if(rload) rload.addEventListener('click', ()=> loadRoleSettings());
+      const rsave = document.getElementById('role_settings_save'); if(rsave) rsave.addEventListener('click', ()=> saveRoleSettingsToServer());
+  const rinput = document.getElementById('role_sage_limit'); if(rinput) rinput.addEventListener('input', ()=> markRoleSettingsDirty());
+  const rinput_evil = document.getElementById('role_evil_guesser_kills'); if(rinput_evil) rinput_evil.addEventListener('input', ()=> markRoleSettingsDirty());
+  const rinput_nice = document.getElementById('role_nice_guesser_kills'); if(rinput_nice) rinput_nice.addEventListener('input', ()=> markRoleSettingsDirty());
+  const rinput_busker = document.getElementById('role_evil_busker_fake_uses'); if(rinput_busker) rinput_busker.addEventListener('input', ()=> markRoleSettingsDirty());
+    }catch(e){}
+
+    // update ON/OFF labels when toggles change
+    try{
+      const elL = document.getElementById('setting_lovers');
+      if(elL) elL.addEventListener('change', ()=>{ updateStateText('lovers'); markSettingsDirty(); });
+      const elA = document.getElementById('setting_allow_abstain');
+      if(elA) elA.addEventListener('change', ()=>{ updateStateText('allow_abstain'); markSettingsDirty(); });
+      // mark dirty when numeric inputs change as well
+      const elVote = document.getElementById('setting_vote_minutes'); if(elVote) elVote.addEventListener('input', ()=> markSettingsDirty());
+      const elNight = document.getElementById('setting_night_minutes'); if(elNight) elNight.addEventListener('input', ()=> markSettingsDirty());
+      // sage limit input
+  // role-specific sage input moved to separate panel; wire its listener below when role settings code is added
+    }catch(e){}
+
+
+  // Event wiring
+  // Removed top-level JSON edit buttons; table view has its own save/reload handlers.
+  document.getElementById('json').addEventListener('input', ()=>{
+    setStatus('編集中…');
+    scheduleAutosave();
+    try{
+      const cur = (document.getElementById('json').value||'').trim();
+      if(cur !== (lastSavedJson||'').trim()){
+        if(!isDirty){ isDirty = true; showToast('変更が保存されていません', 'warn', { persistent:true, id: UNSAVED_TOAST_ID }); }
+      } else {
+        if(isDirty){ isDirty = false; hideToast(UNSAVED_TOAST_ID); }
+      }
+    }catch(e){}
+  });
+  document.getElementById('autosave').addEventListener('change', ()=>{ setStatus(document.getElementById('autosave').checked ? 'オートセーブ有効' : 'オートセーブ無効'); });
+
+    // Initialize UI
+    (function init(){
+      // Check authentication first
+      fetch('/check_auth').then(r => r.json()).then(data => {
+        if(data.required && !data.authenticated){
+          window.location.href = '/login';
+          return;
+        }
+        // autosave default false
+        document.getElementById('autosave').checked = false;
+        // restore persisted API token if present
+        try{ const stored = localStorage.getItem(API_TOKEN_LS_KEY); if(stored) document.getElementById('token').value = stored; }catch(e){}
+        // persist token on change so it stays available
+        try{ const tEl = document.getElementById('token'); if(tEl) tEl.addEventListener('input', ()=>{ try{ localStorage.setItem(API_TOKEN_LS_KEY, tEl.value||''); }catch(e){} }); }catch(e){}
+        // load current distribution then open settings (table) view
+        load().then(()=> showView('editor'));
+      }).catch(e => {
+        console.error('Auth check failed:', e);
+      });
+    })();
+  </script>
+</body>
+</html>

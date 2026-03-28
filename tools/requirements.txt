@@ -1,0 +1,4 @@
+flask>=2.0
+flask-socketio>=5.3
+eventlet>=0.33
+# optional for production: gunicorn

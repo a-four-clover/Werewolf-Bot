@@ -1,0 +1,649 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Werewolf Viewer powered by recorder</title>
+  <style>
+    :root{
+      --bg:#ffffff; --fg:#1b1b1b; --muted:#6b7280; --accent:#0b62c7; --panel:#f7f7f8;
+      --nav-bg:#ffffff; --nav-border:#e6e6e9; --nav-item-hover:#0b62c7;
+      --f-werewolf-bg: #fff1f2; --f-werewolf-border: #ef4444;
+      --f-village-bg: #f0f7ff; --f-village-border: #0b62c7;
+      --f-third-bg: #f0fff4; --f-third-border: #16a34a;
+    }
+    body{background:var(--bg);color:var(--fg);font-family:Segoe UI, Roboto, Meiryo, sans-serif;margin:0}
+    h1{margin:0 0 8px 0}
+    h2{margin:0 0 12px 0}
+    .controls{display:flex;gap:12px;align-items:center;margin:16px 18px 10px 18px;flex-wrap:wrap}
+    button{background:var(--accent);color:#fff;border:none;padding:8px 12px;border-radius:6px;cursor:pointer}
+    button.ghost{background:transparent;color:var(--fg);border:1px solid rgba(0,0,0,0.08)}
+    .small{font-size:0.9rem;color:var(--muted)}
+    .flex{display:flex;gap:8px;align-items:center}
+    .spacer{flex:1}
+    .panel{background:var(--panel);padding:10px;border-radius:8px}
+    .readonly-banner{background:#fef3c7;border:1px solid #fcd34d;padding:12px;border-radius:8px;margin:16px;text-align:center;font-weight:700}
+  </style>
+  <style>
+    header.navbar{background:#eef6ff;border-bottom:1px solid #e1e8f5;display:flex;align-items:center;gap:24px;padding:12px 20px}
+    .nav-brand{font-weight:600;font-size:1.6rem;color:#0b1726;margin-right:12px}
+    .nav-items{display:flex;gap:18px;margin-left:12px}
+    .nav-item{color:#334155;text-decoration:none;padding:6px 0;font-size:0.98rem}
+    .nav-item:hover{color:var(--nav-item-hover);text-decoration:underline}
+    .nav-item.active{color:var(--accent);text-decoration:underline;font-weight:700}
+  </style>
+  <style>
+    #table_wrapper table{border-collapse:collapse;width:100%;min-width:720px}
+    #table_wrapper th, #table_wrapper td{border:1px solid #e6e6e9;padding:8px;text-align:center;vertical-align:middle}
+    #table_wrapper th{background:#fbfbfc;font-weight:600}
+    #table_wrapper th.faction-werewolf{background:var(--f-werewolf-bg) !important}
+    #table_wrapper th.faction-village{background:var(--f-village-bg) !important}
+    #table_wrapper th.faction-third{background:var(--f-third-bg) !important}
+  </style>
+  <style>
+    .role-section{margin-bottom:18px}
+    .role-entry{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:6px}
+    .role-entry .role-title{font-weight:700}
+    .role-entry .role-meta{color:var(--muted);font-size:0.9rem}
+    .role-desc{margin-top:6px;padding:10px;background:#fff;border-radius:6px;border:1px solid #eee;display:none}
+    .toggle-tri{background:transparent;border:1px solid #ddd;border-radius:4px;padding:2px 6px;cursor:pointer;color:var(--accent);font-weight:700;display:inline-flex;align-items:center}
+    .toggle-tri .tri{display:inline-block;transform-origin:center;transition:transform .12s ease}
+    .toggle-tri.open .tri{transform:rotate(90deg)}
+    .toggle-tri.faction-werewolf .tri{color:var(--f-werewolf-border)}
+    .toggle-tri.faction-village .tri{color:var(--f-village-border)}
+    .toggle-tri.faction-third .tri{color:var(--f-third-border)}
+    #view_roles{padding:18px 24px}
+    #roles_list{max-width:1100px;margin:0 auto;padding:0 12px}
+    .roles-search-bar{max-width:1100px;margin:0 auto;display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:0 12px;box-sizing:border-box}
+    #roles_search{flex:1;padding:10px 12px;border-radius:8px;border:1px solid #ccc;font-size:1rem}
+    #admin_search{flex:1;padding:10px 12px;border-radius:8px;border:1px solid #ccc;font-size:1rem}
+    #admin_list{max-width:1100px;margin:0 auto;padding:0 12px}
+    .role-entry .role-title.faction-werewolf{color:var(--f-werewolf-border)}
+    .role-entry .role-title.faction-village{color:var(--f-village-border)}
+    .role-entry .role-title.faction-third{color:var(--f-third-border)}
+  </style>
+  <style>
+    .switch{display:inline-flex;align-items:center;gap:10px}
+    .switch .switch-label{font-size:0.95rem}
+    .switch .slider{position:relative;display:inline-block;width:46px;height:24px;background:#9ca3af;border-radius:999px;flex-shrink:0}
+    .switch .slider::after{content:'';position:absolute;left:3px;top:3px;width:18px;height:18px;background:#fff;border-radius:50%;box-shadow:0 1px 2px rgba(0,0,0,0.12)}
+    .switch .slider.checked{background:#60a5fa}
+    .switch .slider.checked::after{transform:translateX(22px)}
+    .switch .state{text-transform:none;font-size:0.9rem;color:var(--muted);margin-left:6px}
+    .unit{margin-left:8px;color:#666;font-size:0.95rem;white-space:nowrap}
+    .setting-value{display:inline-block;padding:8px 12px;background:#f3f4f6;border-radius:6px;font-weight:600;min-width:60px;text-align:center}
+  </style>
+</head>
+<body>
+
+  <header class="navbar">
+    <div class="nav-brand">Werewolf Viewer powered by recorder</div>
+    <nav class="nav-items" role="navigation" aria-label="Main">
+      <a id="menu_editor" class="nav-item active" href="#">人数設定</a>
+      <a id="menu_settings" class="nav-item" href="#">ゲーム設定</a>
+      <a id="menu_roles" class="nav-item" href="#">役職説明</a>
+      <a id="menu_admin" class="nav-item" href="#">運営情報</a>
+    </nav>
+    <div class="spacer"></div>
+    <div class="small" id="menu_note">閲覧専用モード</div>
+  </header>
+
+  <div class="readonly-banner">
+    このページは閲覧専用です。設定の編集や保存はできません。
+  </div>
+
+  <div id="view_editor" style="display:none;padding:18px">
+    <h2>人数設定</h2>
+    <div id="table_wrapper" style="overflow:auto;margin-top:12px"></div>
+  </div>
+
+  <div id="view_roles" style="display:none">
+    <div class="roles-search-bar">
+      <input id="roles_search" placeholder="検索（役職ID/名称/説明）" />
+      <button id="roles_show_all" class="ghost">全表示</button>
+    </div>
+    <div id="roles_list"></div>
+  </div>
+
+  <div id="view_settings" style="display:none;padding:18px">
+    <div style="max-width:820px;margin:0 auto">
+      <h2 style="margin-bottom:20px">ゲーム設定</h2>
+      <div class="panel" style="margin-bottom:12px">
+        <div style="display:flex;flex-direction:column;gap:0">
+          <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid #eee">
+            <div style="width:240px;font-size:1.05em;font-weight:700">恋人</div>
+            <div style="flex:1;text-align:right">
+              <div class="switch">
+                <span class="slider" id="slider_lovers" aria-hidden="true"></span>
+                <span class="state" id="state_lovers"></span>
+              </div>
+            </div>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid #eee">
+            <div style="width:240px;font-size:1.05em;font-weight:700">棄権</div>
+            <div style="flex:1;text-align:right">
+              <div class="switch">
+                <span class="slider" id="slider_allow_abstain" aria-hidden="true"></span>
+                <span class="state" id="state_allow_abstain"></span>
+              </div>
+            </div>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid #eee">
+            <div style="width:240px;font-size:1.05em;font-weight:700">投票時間</div>
+            <div style="flex:1;text-align:right;display:flex;align-items:center;justify-content:flex-end">
+              <span class="setting-value" id="value_vote_minutes"></span>
+              <span class="unit">分</span>
+            </div>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid #eee;border-bottom:1px solid #eee">
+            <div style="width:240px;font-size:1.05em;font-weight:700">夜の制限時間</div>
+            <div style="flex:1;text-align:right;display:flex;align-items:center;justify-content:flex-end">
+              <span class="setting-value" id="value_night_minutes"></span>
+              <span class="unit">分</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <h2 style="margin-bottom:20px;margin-top:28px">役職設定</h2>
+      <div class="panel" style="margin-bottom:12px">
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid #eee">
+            <div style="width:240px;font-size:1.05em;font-weight:700;color:#ef4444">イビルゲッサー「推測射殺」</div>
+            <div style="flex:1;text-align:right;display:flex;align-items:center;justify-content:flex-end">
+              <span class="setting-value" id="value_evil_guesser_kills"></span>
+              <span class="unit">回</span>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid #eee">
+            <div style="width:240px;font-size:1.05em;font-weight:700;color:#0b62c7">ナイスゲッサー「推測射殺」</div>
+            <div style="flex:1;text-align:right;display:flex;align-items:center;justify-content:flex-end">
+              <span class="setting-value" id="value_nice_guesser_kills"></span>
+              <span class="unit">回</span>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid #eee">
+            <div style="width:240px;font-size:1.05em;font-weight:700;color:#ef4444">イビルバスカー「偽装死」</div>
+            <div style="flex:1;text-align:right;display:flex;align-items:center;justify-content:flex-end">
+              <span class="setting-value" id="value_evil_busker_fake_uses"></span>
+              <span class="unit">回</span>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid #eee;border-bottom:1px solid #eee">
+            <div style="width:240px;font-size:1.05em;font-weight:700;color:#0b62c7">賢者「結界」</div>
+            <div style="flex:1;text-align:right;display:flex;align-items:center;justify-content:flex-end">
+              <span class="setting-value" id="value_sage_limit"></span>
+              <span class="unit">回</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="view_admin" style="display:none;padding:18px 24px">
+    <div class="roles-search-bar">
+      <input id="admin_search" placeholder="検索（タイトル/本文）" />
+      <button id="admin_show_all" class="ghost">全表示</button>
+    </div>
+    <div class="roles-search-bar" style="margin-top:20px;margin-bottom:8px;align-items:center">
+      <h2 style="margin:0">お知らせ</h2>
+    </div>
+    <div id="admin_list"></div>
+  </div>
+
+  <script>
+    // Auto-reload state
+    let currentView = null;
+    let autoReloadInterval = null;
+
+    // View switching
+    function showView(name){
+      document.getElementById('view_editor').style.display = 'none';
+      document.getElementById('view_roles').style.display = 'none';
+      document.getElementById('view_settings').style.display = 'none';
+      document.getElementById('view_admin').style.display = 'none';
+
+      document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+
+      currentView = name;
+      if(name === 'editor'){
+        document.getElementById('view_editor').style.display = 'block';
+        document.getElementById('menu_editor').classList.add('active');
+        loadRoleDistribution();
+      } else if(name === 'roles'){
+        document.getElementById('view_roles').style.display = '';
+        document.getElementById('menu_roles').classList.add('active');
+        loadRoles();
+      } else if(name === 'settings'){
+        document.getElementById('view_settings').style.display = '';
+        document.getElementById('menu_settings').classList.add('active');
+        loadSettings();
+      } else if(name === 'admin'){
+        document.getElementById('view_admin').style.display = '';
+        document.getElementById('menu_admin').classList.add('active');
+        loadAnnouncements();
+      }
+    }
+
+    // Auto-reload current view
+    function reloadCurrentView(){
+      if(!currentView) return;
+      if(currentView === 'editor'){
+        loadRoleDistribution();
+      } else if(currentView === 'roles'){
+        loadRoles();
+      } else if(currentView === 'settings'){
+        loadSettings();
+      } else if(currentView === 'admin'){
+        loadAnnouncements();
+      }
+    }
+
+    document.getElementById('menu_editor').addEventListener('click', (e)=>{ e.preventDefault(); showView('editor'); });
+    document.getElementById('menu_roles').addEventListener('click', (e)=>{ e.preventDefault(); showView('roles'); });
+    document.getElementById('menu_settings').addEventListener('click', (e)=>{ e.preventDefault(); showView('settings'); });
+    document.getElementById('menu_admin').addEventListener('click', (e)=>{ e.preventDefault(); showView('admin'); });
+
+    // Load and display role distribution table
+    async function loadRoleDistribution(){
+      try{
+        const resp = await fetch('/download');
+        if(!resp.ok) throw new Error('Failed to load');
+        const data = await resp.json();
+        
+        // Fetch roles metadata
+        let rolesMeta = {};
+        try{
+          const r = await fetch('/roles/roles.json');
+          if(r.ok) rolesMeta = await r.json();
+        }catch(e){}
+
+        // Build role keys
+        let roleKeys = Object.keys(rolesMeta).filter(k => k !== 'lovers');
+        for(const k of Object.keys(data)){
+          const v = data[k];
+          if(Array.isArray(v)){
+            for(const it of v){
+              if(typeof it==='string'){
+                const rid = (it.indexOf(':')>-1)? it.split(':',1)[0] : it;
+                if(!roleKeys.includes(rid) && rid !== 'lovers') roleKeys.push(rid);
+              }
+            }
+          }
+        }
+        if(!roleKeys.includes('villager')) roleKeys.push('villager');
+
+        // Build rows
+        const rows = [];
+        for(const k of Object.keys(data)){
+          const n = parseInt(k,10);
+          if(Number.isNaN(n)) continue;
+          const counts = {};
+          for(const r of roleKeys) counts[r]=0;
+          const v = data[k];
+          if(Array.isArray(v)){
+            for(const it of v){
+              if(typeof it!=='string') continue;
+              if(it.indexOf(':')>-1){
+                const parts = it.split(':');
+                const rid = parts[0];
+                const c = parseInt(parts[1],10)||0;
+                counts[rid]= (counts[rid]||0)+c;
+              } else {
+                counts[it]= (counts[it]||0)+1;
+              }
+            }
+          }
+          rows.push({n, counts});
+        }
+        rows.sort((a,b)=>a.n-b.n);
+
+        renderTable(roleKeys, rows, rolesMeta);
+      }catch(e){
+        document.getElementById('table_wrapper').innerHTML = '<p class="small">データの読み込みに失敗しました</p>';
+      }
+    }
+
+    function renderTable(roleKeys, rows, rolesMeta){
+      const wrap = document.getElementById('table_wrapper');
+      wrap.innerHTML='';
+      const table = document.createElement('table');
+      const thead = document.createElement('thead');
+
+      // Faction header row
+      const fragRow = document.createElement('tr');
+      const fragFirst = document.createElement('th');
+      fragFirst.textContent='人数';
+      fragFirst.rowSpan = 2;
+      fragRow.appendChild(fragFirst);
+
+      const normalizeFaction = (f, key) => {
+        if(key === 'madman') return 'werewolf';
+        if(f === 'werewolf') return 'werewolf';
+        if(f === 'village') return 'village';
+        return 'third';
+      };
+
+      const rawFactionArr = roleKeys.map(k => {
+        const meta = rolesMeta[k] || {};
+        const f = meta.faction || '';
+        return normalizeFaction(f, k);
+      });
+
+      const factionLabel = f => (f === 'werewolf' ? '人狼陣営' : (f === 'village' ? '村人陣営' : '第三陣営'));
+      const labelArr = rawFactionArr.map(f => factionLabel(f));
+
+      let i = 0;
+      while(i < labelArr.length){
+        const lbl = labelArr[i];
+        let j = i+1;
+        while(j < labelArr.length && labelArr[j] === lbl) j++;
+        const colspan = j - i;
+        const th = document.createElement('th');
+        th.colSpan = colspan;
+        th.textContent = lbl;
+        const factionId = rawFactionArr[i] || 'third';
+        th.className = 'faction-' + factionId;
+        fragRow.appendChild(th);
+        i = j;
+      }
+      thead.appendChild(fragRow);
+
+      // Role name row
+      const nameRow = document.createElement('tr');
+      for(const r of roleKeys){
+        const th = document.createElement('th');
+        const meta = rolesMeta[r] || {};
+        const roleName = (meta && meta.name) ? meta.name : r;
+        th.textContent = roleName;
+        const rfRaw = (meta && meta.faction) ? meta.faction : '';
+        const rf = normalizeFaction(rfRaw, r);
+        th.className = 'role-header faction-' + rf;
+        nameRow.appendChild(th);
+      }
+      thead.appendChild(nameRow);
+      table.appendChild(thead);
+
+      // Table body
+      const tbody = document.createElement('tbody');
+      for(const row of rows){
+        const tr = document.createElement('tr');
+        const tdN = document.createElement('td');
+        tdN.textContent = row.n;
+        tr.appendChild(tdN);
+
+        let nonVillagerSum = 0;
+        for(const r of roleKeys){
+          if(r === 'villager') continue;
+          nonVillagerSum += (row.counts[r]||0);
+        }
+        const computedVillagers = row.n - nonVillagerSum;
+
+        for(const r of roleKeys){
+          const td = document.createElement('td');
+          if(r === 'villager'){
+            td.textContent = String(computedVillagers);
+          } else {
+            td.textContent = String(row.counts[r]||0);
+          }
+          tr.appendChild(td);
+        }
+        tbody.appendChild(tr);
+      }
+      table.appendChild(tbody);
+      wrap.appendChild(table);
+    }
+
+    // Load and display roles
+    let rolesData = null;
+    async function loadRoles(){
+      const candidates = ['/roles/roles.json', 'roles.json', '/download'];
+      for(const url of candidates){
+        try{
+          const resp = await fetch(url);
+          if(!resp.ok) continue;
+          const j = await resp.json();
+          const sampleKey = Object.keys(j)[0];
+          const sampleVal = j[sampleKey];
+          if(typeof sampleVal === 'object' && (sampleVal.name || sampleVal.faction || sampleVal.description)){
+            rolesData = j;
+            break;
+          }
+        }catch(e){ continue; }
+      }
+      if(!rolesData){
+        document.getElementById('roles_list').innerHTML='<p class="small">役職データが見つかりません</p>';
+        return;
+      }
+      renderRoles();
+    }
+
+    function renderRoles(filter=''){
+      const list = document.getElementById('roles_list');
+      list.innerHTML='';
+      const q = filter.trim().toLowerCase();
+      const groups = { '人狼陣営':[], '村人陣営':[], '第三陣営':[] };
+
+      const normFaction = (f, key) => {
+        if(key === 'madman') return 'werewolf';
+        if(f === 'werewolf') return 'werewolf';
+        if(f === 'village') return 'village';
+        return 'third';
+      };
+
+      for(const k of Object.keys(rolesData)){
+        const item = rolesData[k];
+        const factionRaw = (item && item.faction) ? item.faction : '';
+        const nf = normFaction(factionRaw, k);
+        let g = '第三陣営';
+        if(nf === 'werewolf') g = '人狼陣営';
+        else if(nf === 'village') g = '村人陣営';
+        groups[g].push(k);
+      }
+
+      for(const header of ['人狼陣営','村人陣営','第三陣営']){
+        const keys = groups[header];
+        if(!keys || keys.length===0) continue;
+        const sect = document.createElement('div');
+        sect.className='role-section';
+        const h = document.createElement('h3');
+        h.textContent = header;
+        sect.appendChild(h);
+
+        for(const k of keys){
+          const item = rolesData[k] || {};
+          const name = (item && item.name) ? item.name : k;
+          const desc = (item && item.description) ? item.description : '';
+          const abbr = (item && item.abbr) ? item.abbr : '';
+          
+          const container = document.createElement('div');
+          const factionId = normFaction((item && item.faction) ? item.faction : '', k);
+          container.className = 'panel ' + 'faction-' + factionId;
+          container.style.marginBottom='8px';
+
+          const entry = document.createElement('div');
+          entry.className='role-entry';
+          const btn = document.createElement('button');
+          btn.className='toggle-tri ' + 'faction-' + factionId;
+          btn.innerHTML = '<span class="tri">▶</span>';
+          const titleWrap = document.createElement('div');
+          titleWrap.innerHTML = `<span class="role-title ${'faction-'+factionId}">${name}</span> <span class="role-meta">(${k}${abbr? ' / '+abbr : ''})</span>`;
+          entry.appendChild(btn);
+          entry.appendChild(titleWrap);
+          container.appendChild(entry);
+
+          const d = document.createElement('div');
+          d.className='role-desc small';
+          d.innerHTML = desc.replace(/\n/g,'<br>');
+          container.appendChild(d);
+
+          btn.addEventListener('click', ()=>{
+            const isShown = d.style.display === 'block';
+            d.style.display = isShown ? 'none' : 'block';
+            if(isShown) btn.classList.remove('open');
+            else btn.classList.add('open');
+          });
+
+          const txt = (k + ' ' + name + ' ' + desc + ' ' + (item && item.faction ? item.faction : '')).toLowerCase();
+          if(q && txt.indexOf(q) === -1) continue;
+          sect.appendChild(container);
+        }
+        if(sect.children.length>1) list.appendChild(sect);
+      }
+      if(list.children.length===0) list.innerHTML = '<div class="small">該当する役職はありません</div>';
+    }
+
+    document.getElementById('roles_show_all').addEventListener('click', ()=> renderRoles(''));
+    document.getElementById('roles_search').addEventListener('input', (e)=> renderRoles(e.target.value));
+
+    // Load and display settings
+    async function loadSettings(){
+      try{
+        const resp = await fetch('/game_settings');
+        if(resp.ok){
+          const data = await resp.json();
+          displayGameSettings(data);
+        }
+      }catch(e){}
+
+      try{
+        const resp = await fetch('/role_settings');
+        if(resp.ok){
+          const data = await resp.json();
+          displayRoleSettings(data);
+        }
+      }catch(e){}
+    }
+
+    function displayGameSettings(data){
+      const lovers = !!data.lovers;
+      const abstain = !!data.allow_abstain;
+      const vote = data.vote_minutes || 0;
+      const night = data.night_minutes || 0;
+
+      const sliderL = document.getElementById('slider_lovers');
+      const stateL = document.getElementById('state_lovers');
+      if(lovers){
+        sliderL.classList.add('checked');
+        stateL.textContent = 'オン';
+      } else {
+        sliderL.classList.remove('checked');
+        stateL.textContent = 'オフ';
+      }
+
+      const sliderA = document.getElementById('slider_allow_abstain');
+      const stateA = document.getElementById('state_allow_abstain');
+      if(abstain){
+        sliderA.classList.add('checked');
+        stateA.textContent = 'オン';
+      } else {
+        sliderA.classList.remove('checked');
+        stateA.textContent = 'オフ';
+      }
+
+      document.getElementById('value_vote_minutes').textContent = vote;
+      document.getElementById('value_night_minutes').textContent = night;
+    }
+
+    function displayRoleSettings(data){
+      document.getElementById('value_evil_guesser_kills').textContent = data.evil_guesser_kills || 1;
+      document.getElementById('value_nice_guesser_kills').textContent = data.nice_guesser_kills || 1;
+      document.getElementById('value_evil_busker_fake_uses').textContent = data.evil_busker_fake_uses || 1;
+      document.getElementById('value_sage_limit').textContent = data.sage_limit || 2;
+    }
+
+    // Load and display announcements
+    async function loadAnnouncements(){
+      try{
+        const resp = await fetch('/announcements');
+        if(resp.ok){
+          const data = await resp.json();
+          renderAnnouncements(data);
+        } else {
+          document.getElementById('admin_list').innerHTML = '<p class="small">お知らせがありません</p>';
+        }
+      }catch(e){
+        document.getElementById('admin_list').innerHTML = '<p class="small">お知らせの読み込みに失敗しました</p>';
+      }
+    }
+
+    function renderAnnouncements(announcements, filter=''){
+      const list = document.getElementById('admin_list');
+      list.innerHTML='';
+      const q = (filter||'').trim().toLowerCase();
+
+      if(!announcements || announcements.length===0){
+        list.innerHTML = '<div class="small">お知らせはありません</div>';
+        return;
+      }
+
+      announcements.slice().reverse().forEach(a=>{
+        const txt = ((a && a.title) ? a.title : '') + ' ' + ((a && a.body) ? a.body : '');
+        if(q && txt.toLowerCase().indexOf(q) === -1) return;
+
+        const box = document.createElement('div');
+        box.className='panel';
+        box.style.marginBottom='8px';
+
+        const h = document.createElement('div');
+        h.style.display='flex';
+        h.style.alignItems='center';
+
+        const t = document.createElement('div');
+        t.style.fontWeight='700';
+        t.textContent = a.title || '(無題)';
+
+        const meta = document.createElement('div');
+        meta.className='small';
+        meta.style.marginLeft='8px';
+
+        let dtText = '';
+        if(a && a.date){
+          try{
+            const d = new Date(a.date);
+            dtText = d.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+          }catch(e){ dtText = a.date; }
+        }
+        meta.textContent = dtText;
+
+        h.appendChild(t);
+        h.appendChild(meta);
+        box.appendChild(h);
+
+        const b = document.createElement('div');
+        b.className='small';
+        b.style.marginTop='8px';
+        b.innerHTML = (a.body||'').replace(/\n/g,'<br>');
+        box.appendChild(b);
+
+        list.appendChild(box);
+      });
+    }
+
+    document.getElementById('admin_show_all').addEventListener('click', ()=> loadAnnouncements());
+    document.getElementById('admin_search').addEventListener('input', (e)=>{
+      fetch('/announcements').then(r=>r.json()).then(data=>renderAnnouncements(data, e.target.value)).catch(e=>{});
+    });
+
+    // Initialize
+    (function init(){
+      // Check authentication first
+      fetch('/check_auth').then(r => r.json()).then(data => {
+        if(data.required && !data.authenticated){
+          window.location.href = '/login';
+          return;
+        }
+        showView('editor');
+        // Auto-reload every 15 seconds
+        autoReloadInterval = setInterval(reloadCurrentView, 15000);
+      }).catch(e => {
+        console.error('Auth check failed:', e);
+      });
+    })();
+  </script>
+</body>
+</html>

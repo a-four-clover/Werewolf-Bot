@@ -1,0 +1,9 @@
+body{font-family:Segoe UI, Roboto, Helvetica, Arial, sans-serif; background:#f7f7fb; color:#111}
+main{max-width:900px;margin:32px auto;padding:20px;background:#fff;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.08)}
+h1{margin-top:0}
+table{width:100%;border-collapse:collapse;margin-top:12px}
+th,td{padding:8px 10px;border-bottom:1px solid #eee;text-align:left}
+th{background:#fafafa;font-weight:600}
+tr:hover td{background:#fcfcfe}
+.note{font-size:0.9rem;color:#666;margin-top:12px}
+#last-updated{font-size:0.9rem;color:#666}
